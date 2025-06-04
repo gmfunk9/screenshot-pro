@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const gallery = document.getElementById("gallery");
     const result = document.getElementById("result");
     const templateImageWrap = document.querySelector(".image-wrap");
+    const savePageBtn = document.getElementById("savePageBtn");
     let eventSource;
     let isFirstAppend = true;
 
@@ -29,6 +30,8 @@ document.addEventListener("DOMContentLoaded", function() {
             console.error("Failed to communicate with server:", error);
         }
     });
+
+    savePageBtn.addEventListener("click", savePage);
 
     function startListening() {
         if (eventSource) {
@@ -90,6 +93,64 @@ document.addEventListener("DOMContentLoaded", function() {
         
         console.log("appendChild clonedImageWrap");
         result.appendChild(clonedImageWrap);
+    }
+
+    async function fetchText(url) {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to load ${url}`);
+        }
+        return response.text();
+    }
+
+    async function imageToDataUrl(src) {
+        const response = await fetch(src);
+        if (!response.ok) {
+            return src;
+        }
+        const blob = await response.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    async function savePage() {
+        const css = await fetchText('/static/css/style.min.css');
+        const mainJs = await fetchText('/static/js/main.js');
+        const grabJs = await fetchText('/static/js/fpgrab.js');
+
+        const doc = document.documentElement.cloneNode(true);
+        doc.querySelectorAll('link[rel="stylesheet"]').forEach(el => el.remove());
+        doc.querySelectorAll('script[src]').forEach(el => el.remove());
+
+        const head = doc.querySelector('head');
+        const styleEl = document.createElement('style');
+        styleEl.textContent = css;
+        head.appendChild(styleEl);
+
+        const body = doc.querySelector('body');
+        const scriptGrab = document.createElement('script');
+        scriptGrab.textContent = grabJs;
+        body.appendChild(scriptGrab);
+        const scriptMain = document.createElement('script');
+        scriptMain.textContent = mainJs;
+        body.appendChild(scriptMain);
+
+        const images = doc.querySelectorAll('img');
+        for (const img of images) {
+            img.src = await imageToDataUrl(img.src);
+        }
+
+        const finalHtml = '<!DOCTYPE html>\n' + doc.outerHTML;
+        const blob = new Blob([finalHtml], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'page.html';
+        a.click();
+        URL.revokeObjectURL(url);
     }
     
 });

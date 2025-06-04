@@ -16,35 +16,29 @@ const router = express.Router();
  * It makes use of both the sitemap and screenshot utility functions.
  */
 router.post("/capture", async (req, res) => {
-	const { url } = req.body;
+        const url = req.body.url;
+        if (!url) {
+                res.status(400).json({ error: "Missing field url; add to body." });
+                return;
+        }
 
-	try {
-		// Attempt to fetch sitemap for the URL.
-		const sitemapResponse = await fetchSitemap(url);
+        try {
+                const sitemapUrls = await fetchSitemap(url);
+                const results = [];
 
-		// Validate sitemap response. If it's not structured as expected, send an error.
-		if (!sitemapResponse.success || !Array.isArray(sitemapResponse.sitemap)) {
-			return res.status(400).json({ error: "Failed to fetch or process sitemap" });
-		}
+                for (const siteUrl of sitemapUrls) {
+                        const imageData = await captureDesktopScreenshot(siteUrl);
+                        clients.forEach((client) => {
+                                client.write(`data: ${JSON.stringify({ imageData })}\n\n`);
+                        });
+                        results.push(imageData);
+                }
 
-		const results = [];
-		for (const siteUrl of sitemapResponse.sitemap) {
-			const imageData = await captureDesktopScreenshot(siteUrl);
-
-			// Broadcast the new screenshot data to all connected clients.
-			// This is a form of real-time communication using SSE.
-			clients.forEach((client) => {
-				client.write(`data: ${JSON.stringify({ imageData })}\n\n`);
-			});
-			results.push(imageData);
-		}
-
-		res.json({ success: true, results });
-	} catch (error) {
-		// Handle unexpected errors.
-		console.error(error);
-		res.status(500).json({ success: false, error: error.message });
-	}
+                res.json({ success: true, results });
+        } catch (error) {
+                console.error(error);
+                res.status(500).json({ error: error.message });
+        }
 });
 
 /**

@@ -7,28 +7,40 @@ import { sitemapCacheDir } from './file.js';
 
 
 export async function fetchSitemap(url) {
-    console.log("FETCHSITEMAP:" + url);
-    const cacheDir  = sitemapCacheDir();
+    const cacheDir = sitemapCacheDir();
     const cachePath = path.join(cacheDir, `${url.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`);
 
-    // Check if sitemap exists in cache
     if (fs.existsSync(cachePath)) {
-        console.log("Using cached sitemap");
-        return JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+        const data = fs.readFileSync(cachePath, 'utf-8');
+        return JSON.parse(data);
     }
 
-    
-    const response = await fetch(`https://getsitemap.funkpd.com/json?url=${url}`);
-    const sitemapData = await response.json();
-
-    console.log(response);
-
-    if (!sitemapData || !sitemapData.sitemap || sitemapData.sitemap.length === 0) {
-        throw new Error('No URLs found in sitemap ' + response);
+    let response;
+    try {
+        response = await fetch(`https://getsitemap.funkpd.com/json?url=${url}`);
+    } catch (err) {
+        throw new Error(`Network request failed ${err.message}`);
     }
 
-    // Save sitemap to cache
-    fs.writeFileSync(cachePath, JSON.stringify(sitemapData));
+    if (!response.ok) {
+        throw new Error(`Bad response ${response.status}`);
+    }
 
-    return sitemapData.sitemap;
+    let data;
+    try {
+        data = await response.json();
+    } catch {
+        throw new Error('Failed to parse sitemap JSON');
+    }
+
+    if (!data.sitemap) {
+        throw new Error('Missing sitemap in response');
+    }
+
+    if (data.sitemap.length === 0) {
+        throw new Error('Empty sitemap');
+    }
+
+    fs.writeFileSync(cachePath, JSON.stringify(data));
+    return data.sitemap;
 }
