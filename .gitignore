@@ -1,5 +1,31 @@
-node_modules/
 *.jpg
 *.jpeg
 *.png
 *.zip
+*.bak
+/assets/sitemap-cache/*
+project.htm
+project.md
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Puppeteer cache
+.chromium/
+.cache/
+puppeteer.log
+
+# Output screenshots
+static/screenshots/
+
+# dotenv or local config (if you add one)
+.env
+
+# OS + editor trash
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+package-lock.json
+*.sqlite
+*.log

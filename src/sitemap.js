@@ -21,8 +21,10 @@ export async function fetchSitemap(url) {
     const response = await fetch(`https://getsitemap.funkpd.com/json?url=${url}`);
     const sitemapData = await response.json();
 
+    console.log(response);
+
     if (!sitemapData || !sitemapData.sitemap || sitemapData.sitemap.length === 0) {
-        throw new Error('No URLs found in sitemap');
+        throw new Error('No URLs found in sitemap ' + response);
     }
 
     // Save sitemap to cache

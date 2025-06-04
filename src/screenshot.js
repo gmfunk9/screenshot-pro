@@ -1,8 +1,10 @@
 import puppeteer from 'puppeteer';
 import sharp from 'sharp';
 import path from 'path';
+import fs from 'fs';
 import { generateFilePaths, screenshotExists } from './file.js';
 
+const cache = {};
 
 async function simulateMouseMovement(page) {
     const mouse = page.mouse;
@@ -11,10 +13,46 @@ async function simulateMouseMovement(page) {
     await mouse.move(100, 100);
 }
 
+async function handleRequestInterception(interceptedRequest) {
+    const url = interceptedRequest.url();
+    const resourceType = interceptedRequest.resourceType();
+    
+    if ((resourceType === 'stylesheet' || resourceType === 'script') && cache[url]) {
+        console.log(`Serving ${resourceType} from cache: ${url}`);
+        interceptedRequest.respond({
+            status: 200,
+            body: cache[url],
+        });
+    } else {
+        interceptedRequest.continue();
+    }
+}
+
+async function cacheAssets(page) {
+    await page.setRequestInterception(true);
+
+    page.on('request', handleRequestInterception);
+    
+    page.on('response', async (response) => {
+        const url = response.url();
+        const resourceType = response.request().resourceType();
+
+        if (resourceType === 'stylesheet' || resourceType === 'script') {
+            try {
+                const buffer = await response.buffer();
+                cache[url] = buffer;
+                console.log(`Cached ${resourceType}: ${url}`);
+            } catch (error) {
+                console.error(`Failed to cache ${resourceType} ${url}:`, error);
+            }
+        }
+    });
+}
+
 // Capture and save a screenshot using Puppeteer
 async function _takeScreenshot(url) {
     console.log("START: takeScreenshot");
-    const { screenshotsDir, finalFilePath, relativePath} = generateFilePaths(url);
+    const { screenshotsDir, finalFilePath, relativePath } = generateFilePaths(url);
     console.log("FILE:" + finalFilePath);
     console.log("URL :" + url);
     
@@ -24,28 +62,34 @@ async function _takeScreenshot(url) {
     }
     console.log("!exists:" + finalFilePath);
 
-    const browser = await puppeteer.launch({ headless: "new" });
+    const browser = await puppeteer.launch({ headless: true }); // Run in headless mode
     console.log("launch:");
     const page = await browser.newPage();
     console.log("newPage:");
-    await page.goto(url);
-    console.log("goto:");
-    await page.waitForTimeout(1000); 
-    await simulateMouseMovement(page);
 
-    await page.setViewport({ width: 1920, height: 1080 });
+    await cacheAssets(page);
 
-    const bodyHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-    await page.setViewport({ width: 1920, height: bodyHeight });
-    // Simulate mouse movement
-    // Wait for 3 seconds
-    await page.waitForTimeout(2000); 
-    const screenshotBuffer = await page.screenshot({ path: finalFilePath, fullPage: true });
-    await browser.close();
-    
-    console.log("captured:" + finalFilePath);
-    return { status: 'captured', filepath: finalFilePath, relativePath: relativePath };
+    try {
+        await page.goto(url, { timeout: 60000 }); // Increase navigation timeout to 60 seconds
+        console.log("goto:");
+        await page.waitForTimeout(1000);
+        await simulateMouseMovement(page);
 
+        await page.setViewport({ width: 1920, height: 1080 });
+
+        const bodyHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+        await page.setViewport({ width: 1920, height: bodyHeight });
+        await page.waitForTimeout(2000);
+        const screenshotBuffer = await page.screenshot({ path: finalFilePath, fullPage: true });
+        await browser.close();
+
+        console.log("captured:" + finalFilePath);
+        return { status: 'captured', filepath: finalFilePath, relativePath: relativePath };
+    } catch (error) {
+        console.error("Error capturing screenshot:", error);
+        await browser.close();
+        return { status: 'error', error: error.message };
+    }
 }
 
 // Retrieve the dimensions of an image
