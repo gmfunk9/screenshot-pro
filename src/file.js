@@ -25,15 +25,11 @@ function generateFilePaths(url) {
 function screenshotExists(filepath) {
     return fs.existsSync(filepath);
 }
-function sitemapCacheDir(filepath) {
-
+function sitemapCacheDir() {
     const SITEMAP_CACHE_DIR = path.resolve(config.paths.baseDir, 'assets/sitemap-cache');
-
-    // Ensure the cache directory exists
     if (!fs.existsSync(SITEMAP_CACHE_DIR)) {
         fs.mkdirSync(SITEMAP_CACHE_DIR);
     }
-
     return SITEMAP_CACHE_DIR;
 }
 
