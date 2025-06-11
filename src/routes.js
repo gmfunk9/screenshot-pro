@@ -1,8 +1,11 @@
 // Required modules and configurations
 import path from "path";
+import fs from "fs";
 import express from "express";
+import puppeteer from "puppeteer";
 import { fetchSitemap } from "./sitemap.js";
 import { captureDesktopScreenshot } from "./screenshot.js";
+import { newSession, clearSessionDisk, listImages, sessionPath } from "./session.js";
 import config from "../config.js";
 
 // This array will store active clients for the SSE stream. It's global 
@@ -10,6 +13,43 @@ import config from "../config.js";
 const clients = [];
 
 const router = express.Router();
+
+router.post('/session', (req, res) => {
+        newSession();
+        res.json({ success: true });
+});
+
+router.delete('/session', (req, res) => {
+        clearSessionDisk();
+        res.json({ success: true });
+});
+
+async function createPdf() {
+        const images = listImages();
+        if (!images.length) {
+                throw new Error('No screenshots found');
+        }
+        const html = '<html><body>' + images.map(p => `<img src="file://${p}" style="width:100%;page-break-after:always;">`).join('') + '</body></html>';
+        const htmlPath = path.join(sessionPath(), 'temp.html');
+        fs.writeFileSync(htmlPath, html);
+        const browser = await puppeteer.launch({ executablePath: puppeteer.executablePath(), headless: 'new' });
+        const page = await browser.newPage();
+        await page.goto('file://' + htmlPath);
+        const pdfPath = path.join(sessionPath(), 'screenshots.pdf');
+        await page.pdf({ path: pdfPath, printBackground: true });
+        await browser.close();
+        fs.unlinkSync(htmlPath);
+        return pdfPath;
+}
+
+router.get('/pdf', async (req, res) => {
+        try {
+                const pdfPath = await createPdf();
+                res.download(pdfPath, 'screenshots.pdf');
+        } catch (error) {
+                res.status(500).json({ error: error.message });
+        }
+});
 
 /**
  * Endpoint to capture screenshots for pages listed in the provided sitemap URL.

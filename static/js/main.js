@@ -6,6 +6,10 @@ document.addEventListener("DOMContentLoaded", function() {
     const result = document.getElementById("result");
     const templateImageWrap = document.querySelector(".image-wrap");
     const savePageBtn = document.getElementById("savePageBtn");
+    const newSessionBtn = document.getElementById("newSessionBtn");
+    const clearGalleryBtn = document.getElementById("clearGalleryBtn");
+    const clearDiskBtn = document.getElementById("clearDiskBtn");
+    const exportPdfBtn = document.getElementById("exportPdfBtn");
     let eventSource;
     let isFirstAppend = true;
 
@@ -33,6 +37,10 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     savePageBtn.addEventListener("click", savePage);
+    newSessionBtn.addEventListener("click", startSession);
+    clearGalleryBtn.addEventListener("click", clearGallery);
+    clearDiskBtn.addEventListener("click", clearDisk);
+    exportPdfBtn.addEventListener("click", exportPdf);
 
     function startListening() {
         if (eventSource) {
@@ -150,6 +158,38 @@ document.addEventListener("DOMContentLoaded", function() {
         const a = document.createElement('a');
         a.href = url;
         a.download = 'page.html';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async function startSession() {
+        await fetch('/session', { method: 'POST' });
+        result.innerHTML = '';
+        isFirstAppend = true;
+    }
+
+    function clearGallery() {
+        result.innerHTML = '';
+        isFirstAppend = true;
+    }
+
+    async function clearDisk() {
+        if (!confirm('Delete screenshots?')) return;
+        await fetch('/session', { method: 'DELETE' });
+        clearGallery();
+    }
+
+    async function exportPdf() {
+        const res = await fetch('/pdf');
+        if (!res.ok) {
+            alert('Export failed');
+            return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'screenshots.pdf';
         a.click();
         URL.revokeObjectURL(url);
     }
