@@ -2,38 +2,28 @@ import fs from 'fs';
 import path from 'path';
 import config from '../config.js';
 
-// Determine file paths for saving screenshots using URL's domain and filename
-function generateFilePaths(url) {
-    const host = new URL(url).hostname.replace(/\./g, '_');
-    const pathSegments = new URL(url).pathname.replace(/\//g, '_');
-    const sanitizedPath = pathSegments.replace(/^_+|_+$/g, '') || 'home';
+function ensureDir(dir) {
+    if (fs.existsSync(dir)) return;
+    fs.mkdirSync(dir);
+}
+
+export function generateFilePaths(url) {
+    const { hostname, pathname } = new URL(url);
+    const host = hostname.replace(/\./g, '_');
+    const sanitized = pathname.replace(/\//g, '_').replace(/^_+|_+$/g, '') || 'home';
     const screenshotsDir = path.join(config.paths.screenshots, host);
-    const finalFilePath = path.join(screenshotsDir, `${sanitizedPath}.jpg`);
+    ensureDir(screenshotsDir);
+    const finalFilePath = path.join(screenshotsDir, `${sanitized}.jpg`);
+    const relativePath = `/static/screenshots/${host}/${sanitized}.jpg`;
+    return { screenshotsDir, finalFilePath, relativePath };
+}
 
-    const relativePath = `/static/screenshots/${host}/${sanitizedPath}.jpg`;
-
-    // Ensure the cache directory exists
-    if (!fs.existsSync(screenshotsDir)) {
-      fs.mkdirSync(screenshotsDir);
-    }
-  
-    return { screenshotsDir, finalFilePath, relativePath};
-  }
-  
-
-// Check for the existence of a screenshot at a given file path
-function screenshotExists(filepath) {
+export function screenshotExists(filepath) {
     return fs.existsSync(filepath);
 }
-function sitemapCacheDir() {
-    const SITEMAP_CACHE_DIR = path.resolve(config.paths.baseDir, 'assets/sitemap-cache');
-    if (!fs.existsSync(SITEMAP_CACHE_DIR)) {
-        fs.mkdirSync(SITEMAP_CACHE_DIR);
-    }
-    return SITEMAP_CACHE_DIR;
+
+export function sitemapCacheDir() {
+    const dir = path.resolve(config.paths.baseDir, 'assets/sitemap-cache');
+    ensureDir(dir);
+    return dir;
 }
-
-
-
-
-export { generateFilePaths, screenshotExists, sitemapCacheDir };
