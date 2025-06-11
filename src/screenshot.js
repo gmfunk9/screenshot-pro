@@ -62,7 +62,11 @@ async function _takeScreenshot(url) {
     }
     console.log("!exists:" + finalFilePath);
 
-    const browser = await puppeteer.launch({ headless: true }); // Run in headless mode
+   // const browser = await puppeteer.launch({ headless: true }); // Run in headless mode
+	const browser = await puppeteer.launch({
+	  executablePath: puppeteer.executablePath(), // ← correct way to reference bundled binary
+	  headless: 'new' // optional, silences warning
+	});
     console.log("launch:");
     const page = await browser.newPage();
     console.log("newPage:");
