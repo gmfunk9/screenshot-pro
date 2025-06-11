@@ -6,6 +6,24 @@ import { generateFilePaths, screenshotExists } from './file.js';
 
 const cache = {};
 
+function parseCookies(str, url) {
+    if (!str) return [];
+    const { hostname, pathname } = new URL(url);
+    const cookiePath = pathname || '/';
+    const cookies = [];
+    for (const part of str.split(';')) {
+        const trimmed = part.trim();
+        if (!trimmed) continue;
+        const idx = trimmed.indexOf('=');
+        if (idx === -1) continue;
+        const name = trimmed.slice(0, idx).trim();
+        const value = trimmed.slice(idx + 1).trim();
+        if (!name) continue;
+        cookies.push({ name, value, domain: hostname, path: cookiePath });
+    }
+    return cookies;
+}
+
 async function simulateMouseMovement(page) {
     const mouse = page.mouse;
     await mouse.move(0, 0);
@@ -70,8 +88,9 @@ async function _takeScreenshot(url, cookie) {
     console.log("launch:");
     const page = await browser.newPage();
     console.log("newPage:");
-    if (cookie) {
-        await page.setExtraHTTPHeaders({ Cookie: cookie });
+    const cookies = parseCookies(cookie, url);
+    if (cookies.length) {
+        await page.setCookie(...cookies);
     }
 
     await cacheAssets(page);
