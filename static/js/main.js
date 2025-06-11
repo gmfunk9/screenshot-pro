@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", function() {
     const captureForm = document.getElementById("capture-form");
     const urlInput = document.getElementById("urlInput");
+    const cookieInput = document.getElementById("cookieInput");
     const gallery = document.getElementById("gallery");
     const result = document.getElementById("result");
     const templateImageWrap = document.querySelector(".image-wrap");
@@ -24,7 +25,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ url })
+                body: JSON.stringify({ url, cookie: cookieInput.value })
             });
         } catch (error) {
             console.error("Failed to communicate with server:", error);

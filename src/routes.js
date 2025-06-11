@@ -17,6 +17,7 @@ const router = express.Router();
  */
 router.post("/capture", async (req, res) => {
         const url = req.body.url;
+        const cookie = req.body.cookie || '';
         if (!url) {
                 res.status(400).json({ error: "Missing field url; add to body." });
                 return;
@@ -27,7 +28,7 @@ router.post("/capture", async (req, res) => {
                 const results = [];
 
                 for (const siteUrl of sitemapUrls) {
-                        const imageData = await captureDesktopScreenshot(siteUrl);
+                        const imageData = await captureDesktopScreenshot(siteUrl, cookie);
                         clients.forEach((client) => {
                                 client.write(`data: ${JSON.stringify({ imageData })}\n\n`);
                         });

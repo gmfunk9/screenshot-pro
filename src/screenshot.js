@@ -50,7 +50,7 @@ async function cacheAssets(page) {
 }
 
 // Capture and save a screenshot using Puppeteer
-async function _takeScreenshot(url) {
+async function _takeScreenshot(url, cookie) {
     console.log("START: takeScreenshot");
     const { screenshotsDir, finalFilePath, relativePath } = generateFilePaths(url);
     console.log("FILE:" + finalFilePath);
@@ -70,6 +70,9 @@ async function _takeScreenshot(url) {
     console.log("launch:");
     const page = await browser.newPage();
     console.log("newPage:");
+    if (cookie) {
+        await page.setExtraHTTPHeaders({ Cookie: cookie });
+    }
 
     await cacheAssets(page);
 
@@ -103,9 +106,9 @@ async function _getImageDimensions(imagePath) {
 }
 
 // A higher-level function that captures, processes, and returns screenshot details
-async function captureDesktopScreenshot(url) {
+async function captureDesktopScreenshot(url, cookie) {
     console.log("START: captureDesktopScreenshot");
-    const { status, filepath, relativePath } = await _takeScreenshot(url);
+    const { status, filepath, relativePath } = await _takeScreenshot(url, cookie);
     console.log("GGG " );
     console.log("status " + status);
     console.log("filepath " + filepath);
