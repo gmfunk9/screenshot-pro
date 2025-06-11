@@ -12,12 +12,14 @@ document.addEventListener("DOMContentLoaded", function() {
     const exportPdfBtn = document.getElementById("exportPdfBtn");
     let eventSource;
     let isFirstAppend = true;
+    let currentHost = '';
 
     captureForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         
         const url = urlInput.value;
         if (!url) return;
+        currentHost = new URL(url).hostname;
 
         // Start listening to the stream
         startListening();
@@ -175,7 +177,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
     async function clearDisk() {
         if (!confirm('Delete screenshots?')) return;
-        await fetch('/session', { method: 'DELETE' });
+        const params = currentHost ? '?host=' + encodeURIComponent(currentHost) : '';
+        await fetch('/session' + params, { method: 'DELETE' });
         clearGallery();
     }
 

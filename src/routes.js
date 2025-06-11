@@ -5,7 +5,7 @@ import express from "express";
 import puppeteer from "puppeteer";
 import { fetchSitemap } from "./sitemap.js";
 import { captureDesktopScreenshot } from "./screenshot.js";
-import { newSession, clearSessionDisk, listImages, sessionPath } from "./session.js";
+import { newSession, clearSessionDisk, clearSiteDisk, listImages, sessionPath } from "./session.js";
 import config from "../config.js";
 
 // This array will store active clients for the SSE stream. It's global 
@@ -20,7 +20,12 @@ router.post('/session', (req, res) => {
 });
 
 router.delete('/session', (req, res) => {
-        clearSessionDisk();
+        const host = req.query.host;
+        if (host) {
+                clearSiteDisk(host.replace(/\./g, '_'));
+        } else {
+                clearSessionDisk();
+        }
         res.json({ success: true });
 });
 

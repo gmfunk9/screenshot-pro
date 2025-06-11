@@ -25,6 +25,14 @@ function clearSessionDisk() {
     current = '';
 }
 
+function clearSiteDisk(host) {
+    if (!current) return;
+    const dir = path.join(current, host);
+    if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+}
+
 function listImages() {
     if (!current) return [];
     return fs.readdirSync(current)
@@ -32,4 +40,4 @@ function listImages() {
         .map(f => path.join(current, f));
 }
 
-export { sessionPath, newSession, clearSessionDisk, listImages };
+export { sessionPath, newSession, clearSessionDisk, clearSiteDisk, listImages };

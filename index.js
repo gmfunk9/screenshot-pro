@@ -1,12 +1,13 @@
 import express from 'express';
 import { setupRoutes } from './src/routes.js';
 import config from './config.js';
-import { requestLogger, errorHandler } from './src/middleware.js';
+import { requestLogger, errorHandler, corsHeaders } from './src/middleware.js';
 
 const app = express();
 
 // Middlewares
 app.use(express.json());
+app.use(corsHeaders);
 app.use(requestLogger);  // Use the request logging middleware
 
 // Setup routes

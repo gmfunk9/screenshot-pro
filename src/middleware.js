@@ -6,6 +6,17 @@ function requestLogger(req, res, next) {
     next();
 }
 
+function corsHeaders(req, res, next) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+        res.end();
+        return;
+    }
+    next();
+}
+
 // Middleware for handling errors
 function errorHandler(err, req, res, next) {
     console.error(err.stack); // This line logs the error details
@@ -13,4 +24,4 @@ function errorHandler(err, req, res, next) {
 }
 
 
-export { requestLogger, errorHandler };
+export { requestLogger, errorHandler, corsHeaders };
