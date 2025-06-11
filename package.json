@@ -1,8 +1,7 @@
 {
     "type": "module",
     "scripts": {
-        "start": "node index.js",
-        "test": "echo 'no tests'"
+        "test": "node --test"
     },
     "dependencies": {
         "express": "^4.18.2",
