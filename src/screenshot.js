@@ -9,7 +9,10 @@ const cache = {};
 function parseCookies(str, url) {
     if (!str) return [];
     const { hostname, pathname } = new URL(url);
-    const cookiePath = pathname || '/';
+    let cookiePath = '/';
+    if (pathname) {
+        cookiePath = pathname;
+    }
     const cookies = [];
     for (const part of str.split(';')) {
         const trimmed = part.trim();
@@ -31,19 +34,27 @@ async function simulateMouseMovement(page) {
     await mouse.move(100, 100);
 }
 
-async function handleRequestInterception(interceptedRequest) {
-    const url = interceptedRequest.url();
-    const resourceType = interceptedRequest.resourceType();
-    
-    if ((resourceType === 'stylesheet' || resourceType === 'script') && cache[url]) {
-        console.log(`Serving ${resourceType} from cache: ${url}`);
-        interceptedRequest.respond({
-            status: 200,
-            body: cache[url],
-        });
-    } else {
-        interceptedRequest.continue();
+async function handleRequestInterception(req) {
+    const url = req.url();
+    const type = req.resourceType();
+
+    if (type === 'stylesheet') {
+        if (cache[url]) {
+            console.log(`Serving stylesheet from cache: ${url}`);
+            req.respond({ status: 200, body: cache[url] });
+            return;
+        }
     }
+
+    if (type === 'script') {
+        if (cache[url]) {
+            console.log(`Serving script from cache: ${url}`);
+            req.respond({ status: 200, body: cache[url] });
+            return;
+        }
+    }
+
+    req.continue();
 }
 
 async function cacheAssets(page) {
@@ -53,15 +64,26 @@ async function cacheAssets(page) {
     
     page.on('response', async (response) => {
         const url = response.url();
-        const resourceType = response.request().resourceType();
+        const type = response.request().resourceType();
 
-        if (resourceType === 'stylesheet' || resourceType === 'script') {
+        if (type === 'stylesheet') {
             try {
                 const buffer = await response.buffer();
                 cache[url] = buffer;
-                console.log(`Cached ${resourceType}: ${url}`);
+                console.log(`Cached stylesheet: ${url}`);
             } catch (error) {
-                console.error(`Failed to cache ${resourceType} ${url}:`, error);
+                console.error(`Failed to cache stylesheet ${url}:`, error);
+            }
+            return;
+        }
+
+        if (type === 'script') {
+            try {
+                const buffer = await response.buffer();
+                cache[url] = buffer;
+                console.log(`Cached script: ${url}`);
+            } catch (error) {
+                console.error(`Failed to cache script ${url}:`, error);
             }
         }
     });
@@ -131,7 +153,17 @@ async function captureDesktopScreenshot(url, cookie) {
     console.log("GGG " );
     console.log("status " + status);
     console.log("filepath " + filepath);
-    if (status === 'exists' || status === 'captured') {
+    if (status === 'exists') {
+        const { width, height } = await _getImageDimensions(filepath);
+        console.log("return CDS ");
+        return {
+            status,
+            relativePath,
+            dimensions: { width, height }
+        };
+    }
+
+    if (status === 'captured') {
         const { width, height } = await _getImageDimensions(filepath);
         console.log("return CDS ");
         return {

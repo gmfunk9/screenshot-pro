@@ -7,7 +7,10 @@ import { sessionPath } from './session.js';
 function generateFilePaths(url) {
     const host = new URL(url).hostname.replace(/\./g, '_');
     const pathSegments = new URL(url).pathname.replace(/\//g, '_');
-    const sanitizedPath = pathSegments.replace(/^_+|_+$/g, '') || 'home';
+    let sanitizedPath = pathSegments.replace(/^_+|_+$/g, '');
+    if (!sanitizedPath) {
+        sanitizedPath = 'home';
+    }
     const screenshotsDir = path.join(sessionPath(), host);
     const finalFilePath = path.join(screenshotsDir, `${sanitizedPath}.jpg`);
 

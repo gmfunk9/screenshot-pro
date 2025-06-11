@@ -62,7 +62,7 @@ router.get('/pdf', async (req, res) => {
  */
 router.post("/capture", async (req, res) => {
         const url = req.body.url;
-        const cookie = req.body.cookie || '';
+        const cookie = req.body.cookie ? req.body.cookie : '';
         if (!url) {
                 res.status(400).json({ error: "Missing field url; add to body." });
                 return;
