@@ -1,0 +1,7 @@
+body { font-family: sans-serif; margin: 20px; }
+#controls { margin-bottom: 10px; }
+#viewports button { margin-right: 5px; }
+#viewports .active { font-weight: bold; }
+.card { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+.card img { max-width: 100%; display: none; }
+.card img.active { display: block; }
