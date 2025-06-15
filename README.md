@@ -10,6 +10,6 @@ Simple service to capture webpages in desktop, tablet and mobile viewports.
    ```
 2. Start the server:
    ```bash
-   node src/server.js
+   npm start
    ```
 3. Open `http://localhost:3000` in your browser.
