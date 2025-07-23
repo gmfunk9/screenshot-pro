@@ -14,12 +14,13 @@ router.post('/capture', async (req, res) => {
         return;
     }
 
-    const cookie = req.body.cookie || '';
+    const cookieName = req.body.cookieName || '';
+    const cookieValue = req.body.cookieValue || '';
     try {
         const sitemapUrls = await fetchSitemap(url);
         const results = [];
         for (const siteUrl of sitemapUrls) {
-            const imageData = await captureDesktopScreenshot(siteUrl, cookie);
+            const imageData = await captureDesktopScreenshot(siteUrl, cookieName, cookieValue);
             clients.forEach((c) => {
                 const payload = { imageData };
                 c.write(`data: ${JSON.stringify(payload)}\n\n`);

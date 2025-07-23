@@ -5,7 +5,7 @@ import { parseCookies } from './cookies.js';
 import { simulateMouseMovement } from './mouse.js';
 import { cacheAssets } from './cache.js';
 import config from '../config.js';
-async function takeScreenshot(url, cookie) {
+async function takeScreenshot(url, cookieName, cookieValue) {
 const { finalFilePath, relativePath } = generateFilePaths(url);
 if (screenshotExists(finalFilePath)) {
     return { status: 'exists', filepath: finalFilePath, relativePath, pageUrl: url };
@@ -16,7 +16,7 @@ const browser = await puppeteer.launch({
     defaultViewport: config.puppeteer.defaultViewport
 });
 const page = await browser.newPage();
-const cookies = parseCookies(cookie, url);
+const cookies = parseCookies(cookieName, cookieValue, url);
 if (cookies.length) await page.setCookie(...cookies);
 await cacheAssets(page);
 try {
@@ -46,8 +46,8 @@ async function getImageDimensions(imagePath) {
 const { width, height } = await sharp(imagePath).metadata();
 return { width, height };
 }
-export async function captureDesktopScreenshot(url, cookie) {
-const { status, filepath, relativePath, pageUrl } = await takeScreenshot(url, cookie);
+export async function captureDesktopScreenshot(url, cookieName, cookieValue) {
+const { status, filepath, relativePath, pageUrl } = await takeScreenshot(url, cookieName, cookieValue);
 if (status === 'exists' || status === 'captured') {
     const { width, height } = await getImageDimensions(filepath);
     return { status, relativePath, dimensions: { width, height }, pageUrl };
