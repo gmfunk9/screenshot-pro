@@ -59,7 +59,11 @@ document.addEventListener("DOMContentLoaded", function() {
             }
 
             if (data.imageData.relativePath) {
-                displayScreenshot(data.imageData.relativePath, data.imageData.dimensions);
+                displayScreenshot(
+                    data.imageData.relativePath,
+                    data.imageData.dimensions,
+                    data.imageData.pageUrl
+                );
             }
         };
 
@@ -69,7 +73,7 @@ document.addEventListener("DOMContentLoaded", function() {
         };
     }
 
-    function displayScreenshot(filepath, dimensions) {
+    function displayScreenshot(filepath, dimensions, pageUrl) {
         // Clone the template
         const clonedImageWrap = templateImageWrap.cloneNode(true);
         
@@ -89,15 +93,8 @@ document.addEventListener("DOMContentLoaded", function() {
             img.width = dimensions.width;
             img.height = dimensions.height;
         }
-        let modifiedFilepath = filepath
-            .replace('/static/screenshots/', 'https://')
-            .replace('_com/', '.com/')
-            .replace('.jpg', '');
-
-        
-        // Adjusting the action buttons if needed (you can modify this part further as per requirements)
         const viewPageBtn = clonedImageWrap.querySelector(".view-page-btn");
-        viewPageBtn.href = modifiedFilepath;
+        viewPageBtn.href = pageUrl;
     
         const viewImageBtn = clonedImageWrap.querySelector(".view-image-btn");
         viewImageBtn.href = filepath;

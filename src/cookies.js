@@ -1,7 +1,7 @@
 export function parseCookies(str, url) {
     if (!str) return [];
-    const { hostname, pathname } = new URL(url);
-    const cookiePath = pathname || '/';
+    const { hostname } = new URL(url);
+    const cookiePath = '/';
     const cookies = [];
     for (const part of str.split(';')) {
         const trimmed = part.trim();

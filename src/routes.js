@@ -20,7 +20,10 @@ router.post('/capture', async (req, res) => {
         const results = [];
         for (const siteUrl of sitemapUrls) {
             const imageData = await captureDesktopScreenshot(siteUrl, cookie);
-            clients.forEach((c) => c.write(`data: ${JSON.stringify({ imageData })}\n\n`));
+            clients.forEach((c) => {
+                const payload = { imageData };
+                c.write(`data: ${JSON.stringify(payload)}\n\n`);
+            });
             results.push(imageData);
         }
         res.json({ success: true, results });

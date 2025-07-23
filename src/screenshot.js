@@ -8,7 +8,7 @@ import config from '../config.js';
 async function takeScreenshot(url, cookie) {
 const { finalFilePath, relativePath } = generateFilePaths(url);
 if (screenshotExists(finalFilePath)) {
-    return { status: 'exists', filepath: finalFilePath, relativePath };
+    return { status: 'exists', filepath: finalFilePath, relativePath, pageUrl: url };
 }
 const browser = await puppeteer.launch({
     executablePath: puppeteer.executablePath(),
@@ -36,7 +36,7 @@ try {
     // --- New logic to trim whitespace ---
     await sharp(screenshotBuffer).trim().toFile(finalFilePath);
 
-    return { status: 'captured', filepath: finalFilePath, relativePath };
+    return { status: 'captured', filepath: finalFilePath, relativePath, pageUrl: url };
 } catch (error) {
     await browser.close();
     return { status: 'error', error: error.message };
@@ -47,10 +47,10 @@ const { width, height } = await sharp(imagePath).metadata();
 return { width, height };
 }
 export async function captureDesktopScreenshot(url, cookie) {
-const { status, filepath, relativePath } = await takeScreenshot(url, cookie);
+const { status, filepath, relativePath, pageUrl } = await takeScreenshot(url, cookie);
 if (status === 'exists' || status === 'captured') {
     const { width, height } = await getImageDimensions(filepath);
-    return { status, relativePath, dimensions: { width, height } };
+    return { status, relativePath, dimensions: { width, height }, pageUrl };
 }
 return { status: 'error' };
 }

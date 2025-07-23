@@ -9,12 +9,12 @@ test('parseCookies returns cookie objects', () => {
         name: 'a',
         value: '1',
         domain: 'example.com',
-        path: '/app'
+        path: '/'
     });
     assert.deepEqual(result[1], {
         name: 'b',
         value: '2',
         domain: 'example.com',
-        path: '/app'
+        path: '/'
     });
 });
