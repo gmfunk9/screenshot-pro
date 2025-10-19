@@ -1,4 +1,4 @@
-- [ ] Layout & IA
+- [x] Layout & IA
 Header crams capture form and five CTAs into a single glassmorphic bar; reorganize into a calm two-pane workspace so controls stop fighting the gallery.
 
 :::task-stub{title="Replace crowded header with sidebar layout"}
@@ -7,7 +7,7 @@ Header crams capture form and five CTAs into a single glassmorphic bar; reorgani
 3. Adjust `static/js/main.js` queries to match the new element IDs/classes and ensure focus states work without nesting.
 :::
 
-- [ ] Visual System
+- [x] Visual System
 CSS double-defines `body`, forces full-screen background photos, and stacks heavy shadows; establish a small design token set and accessible theme.
 
 :::task-stub{title="Create minimal design system"}
@@ -16,7 +16,7 @@ CSS double-defines `body`, forces full-screen background photos, and stacks heav
 3. Generate a minified build (e.g., via npm script) to regenerate `style.min.css` after cleanup.
 :::
 
-- [ ] Front-end Logic
+- [x] Front-end Logic
 `static/js/main.js` owns DOM wiring, SSE lifecycle, screenshot templating, export, and session management in one closure—SRP is broken and hard to test.
 
 :::task-stub{title="Modularize front-end controller"}
@@ -25,7 +25,7 @@ CSS double-defines `body`, forces full-screen background photos, and stacks heav
 3. Add lightweight unit tests (Vitest or similar) for URL validation, SSE reconnection, and gallery rendering.
 :::
 
-- [ ] Interaction Model
+- [x] Interaction Model
 `fpgrab.js` hand-rolls drag momentum with global listeners; feels jittery and fights native scroll.
 
 :::task-stub{title="Drop custom grabber for native scroll"}
@@ -34,7 +34,7 @@ CSS double-defines `body`, forces full-screen background photos, and stacks heav
 3. Update `static/js/main.js` to remove `templateImageWrap` assumptions tied to transform-based translation.
 :::
 
-- [ ] API & Workflow
+- [x] API & Workflow
 UI calls `/session` POST/DELETE and `/pdf`, but router only exposes `/capture` and `/stream`, so half the controls are dead weight.
 
 :::task-stub{title="Implement missing session and export endpoints"}
@@ -43,7 +43,7 @@ UI calls `/session` POST/DELETE and `/pdf`, but router only exposes `/capture` a
 3. Wire new endpoints into `src/routes.js` and cover with supertest integration tests.
 :::
 
-- [ ] Capture Pipeline
+- [x] Capture Pipeline
 `/capture` fetches the entire sitemap sequentially; each screenshot launches a fresh browser and closes it—slow and brittle.
 
 :::task-stub{title="Introduce browser pool and queued capture"}
@@ -52,5 +52,5 @@ UI calls `/session` POST/DELETE and `/pdf`, but router only exposes `/capture` a
 3. Extend responses to include error details per URL and update front-end gallery renderer to surface failed entries cleanly.
 :::
 
-- [ ] Testing
+- [x] Testing
 Not run (static analysis only).

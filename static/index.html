@@ -1,77 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Screenshot Capture</title>
-    <link rel="stylesheet" href="static/css/style.min.css">
+    <title>Screenshot Pro</title>
+    <link rel="stylesheet" href="static/css/style.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "app/main": "/static/js/main.js",
+                "app/gallery": "/static/js/gallery.js",
+                "app/sse": "/static/js/sse.js",
+                "app/actions": "/static/js/actions.js",
+                "app/events": "/static/js/events.js"
+            }
+        }
+    </script>
 </head>
-
 <body>
-    <header class="flex-row flex-gap flex-center">
-        <h1>ScreenShot Pro</h1>
-        <form id="capture-form">
-            <input type="url" id="urlInput" value="https://funkpd.com/" placeholder="Enter URL...">
-            <input type="text" id="cookieInput" placeholder="Cookie string...">
-            <button type="submit">Capture Screenshot</button>
-        </form>
-        <button id="savePageBtn" type="button">Save Page</button>
-        <button id="newSessionBtn" type="button">New Session</button>
-        <button id="clearGalleryBtn" type="button">Clear Gallery</button>
-        <button id="clearDiskBtn" type="button">Clear Disk</button>
-        <button id="exportPdfBtn" type="button">Export PDF</button>
-    </header>
-    <main id="gallery">
-        <section id="result" class="flex-row flex-gap">
-
-            <article class="image-wrap card">
-                <img src="https://source.unsplash.com/512x1920/?camera&1" alt="Screenshot" class="screenshot-img" width="320" height="1500">
-                <div class="actions">
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-page-btn button">View Page</a>
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-image-btn button">View Image</a>
+    <div class="app-shell">
+        <aside class="sidebar" aria-label="Capture controls">
+            <header class="sidebar__header">
+                <h1 class="sidebar__title">Screenshot Pro</h1>
+                <p class="sidebar__subtitle">Capture, review, export.</p>
+            </header>
+            <form id="capture-form" class="stack stack--md" novalidate>
+                <label class="field">
+                    <span class="field__label">Page URL</span>
+                    <input type="url" id="urlInput" name="url" placeholder="https://example.com" required>
+                </label>
+                <label class="field">
+                    <span class="field__label">Cookie header</span>
+                    <input type="text" id="cookieInput" name="cookie" placeholder="key=value;">
+                </label>
+                <button type="submit" class="button button--primary">Capture sitemap</button>
+            </form>
+            <section class="stack stack--lg" aria-label="Session controls">
+                <div class="cluster">
+                    <button id="newSessionBtn" type="button" class="button">New session</button>
+                    <button id="clearGalleryBtn" type="button" class="button">Clear gallery</button>
                 </div>
-            </article>   
-            <article class="image-wrap card">
-                <img src="https://source.unsplash.com/512x1280/?camera&2" alt="Screenshot" class="screenshot-img" width="320" height="1500">
-                <div class="actions">
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-page-btn button">View Page</a>
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-image-btn button">View Image</a>
+                <div class="cluster">
+                    <button id="clearDiskBtn" type="button" class="button button--danger">Clear disk</button>
+                    <button id="exportPdfBtn" type="button" class="button">Export PDF</button>
                 </div>
-            </article>   
-            <article class="image-wrap card">
-                <img src="https://source.unsplash.com/768x1920/?camera&3" alt="Screenshot" class="screenshot-img" width="320" height="1500">
-                <div class="actions">
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-page-btn button">View Page</a>
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-image-btn button">View Image</a>
-                </div>
-            </article>    
-            <article class="image-wrap card">
-                <img src="https://source.unsplash.com/512x1080/?camera&4" alt="Screenshot" class="screenshot-img" width="320" height="1500">
-                <div class="actions">
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-page-btn button">View Page</a>
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-image-btn button">View Image</a>
-                </div>
-            </article>    
-            <article class="image-wrap card">
-                <img src="https://source.unsplash.com/512x768/?camera&5" alt="Screenshot" class="screenshot-img" width="320" height="1500">
-                <div class="actions">
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-page-btn button">View Page</a>
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-image-btn button">View Image</a>
-                </div>
-            </article>     
-            <article class="image-wrap card">
-                <img src="https://source.unsplash.com/256x1080/?camera&6" alt="Screenshot" class="screenshot-img" width="320" height="1500">
-                <div class="actions">
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-page-btn button">View Page</a>
-                    <a href="#" target="_blank" rel="noopener noreferrer" class="view-image-btn button">View Image</a>
-                </div>
-            </article>    
-                    
-        </section>
-    </main>
-    <script src="/static/js/main.js"></script>
-    <script src="/static/js/fpgrab.js"></script>
+                <button id="savePageBtn" type="button" class="button button--ghost">Save offline bundle</button>
+            </section>
+            <footer class="sidebar__footer" aria-live="polite">
+                <p id="sessionStatus" class="sidebar__status">Idle</p>
+            </footer>
+        </aside>
+        <main class="gallery" aria-live="polite" aria-label="Screenshot gallery">
+            <div id="result" class="gallery__grid" data-empty>
+                <p class="gallery__placeholder">Screenshots will appear here as they finish.</p>
+            </div>
+        </main>
+    </div>
+    <script type="module">import 'app/main';</script>
 </body>
-
 </html>

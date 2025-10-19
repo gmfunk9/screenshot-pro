@@ -1,21 +1,35 @@
 import fs from 'fs';
 import path from 'path';
 import config from '../config.js';
+import { sessionPath } from './session.js';
 
 function ensureDir(dir) {
     if (fs.existsSync(dir)) return;
     fs.mkdirSync(dir, { recursive: true });
 }
 
+function sanitizeHost(hostname) {
+    return hostname.replace(/\./g, '_');
+}
+
+function sanitizePath(pathname) {
+    const cleaned = pathname.replace(/\//g, '_').replace(/^_+|_+$/g, '');
+    if (cleaned) return cleaned;
+    return 'home';
+}
+
 export function generateFilePaths(url) {
-    const { hostname, pathname } = new URL(url);
-    const host = hostname.replace(/\./g, '_');
-    const sanitized = pathname.replace(/\//g, '_').replace(/^_+|_+$/g, '') || 'home';
-    const screenshotsDir = path.join(config.paths.screenshots, host);
-    ensureDir(screenshotsDir);
-    const finalFilePath = path.join(screenshotsDir, `${sanitized}.jpg`);
-    const relativePath = `/static/screenshots/${host}/${sanitized}.jpg`;
-    return { screenshotsDir, finalFilePath, relativePath };
+    const parsed = new URL(url);
+    const hostname = parsed.hostname;
+    const hostSlug = sanitizeHost(hostname);
+    const fileSlug = sanitizePath(parsed.pathname);
+    const sessionDir = sessionPath();
+    const sessionId = path.basename(sessionDir);
+    const hostDir = path.join(sessionDir, hostSlug);
+    ensureDir(hostDir);
+    const finalFilePath = path.join(hostDir, `${fileSlug}.jpg`);
+    const relativePath = `/static/screenshots/${sessionId}/${hostSlug}/${fileSlug}.jpg`;
+    return { sessionId, hostDir, finalFilePath, relativePath, hostname, hostSlug, fileSlug };
 }
 
 export function screenshotExists(filepath) {

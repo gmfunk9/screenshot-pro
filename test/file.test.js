@@ -29,7 +29,7 @@ test('sitemapCacheDir ensures dir', () => {
 test('generateFilePaths builds paths', () => {
     const { finalFilePath, relativePath } = generateFilePaths('http://example.com/page');
     assert.ok(finalFilePath.includes('example_com'));
-    assert.ok(relativePath.startsWith('/static/screenshots/example_com/'));
+    assert.match(relativePath, /^\/static\/screenshots\/\d+\/example_com\//);
 });
 
 test.after(() => {
