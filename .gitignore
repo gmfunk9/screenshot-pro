@@ -16,7 +16,8 @@ npm-debug.log*
 puppeteer.log
 
 # Output screenshots
-static/screenshots/
+static/screenshots/*
+!static/screenshots/.gitkeep
 
 # dotenv or local config (if you add one)
 .env

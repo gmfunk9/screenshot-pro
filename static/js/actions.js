@@ -1,46 +1,10 @@
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
-const MODULES = [
-    { specifier: 'app/main', path: '/static/js/main.js' },
-    { specifier: 'app/gallery', path: '/static/js/gallery.js' },
-    { specifier: 'app/sse', path: '/static/js/sse.js' },
-    { specifier: 'app/actions', path: '/static/js/actions.js' },
-    { specifier: 'app/events', path: '/static/js/events.js' }
-];
 
 function ensureOk(response, errorMessage) {
-    if (response.ok) return response;
-    throw new Error(errorMessage);
-}
-
-function encodeModule(code) {
-    const encoded = btoa(unescape(encodeURIComponent(code)));
-    return `data:text/javascript;base64,${encoded}`;
-}
-
-async function fetchText(url) {
-    const response = await fetch(url);
-    ensureOk(response, `Failed to load ${url}.`);
-    return response.text();
-}
-
-async function imageToDataUrl(src) {
-    const response = await fetch(src);
-    ensureOk(response, `Failed to load ${src}.`);
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error(`Failed to inline ${src}.`));
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(blob);
-    });
-}
-
-function buildImportMap(entries) {
-    const imports = {};
-    for (const entry of entries) {
-        imports[entry.specifier] = entry.url;
+    if (response.ok) {
+        return response;
     }
-    return JSON.stringify({ imports });
+    throw new Error(errorMessage);
 }
 
 function downloadBlob(blob, filename) {
@@ -53,87 +17,96 @@ function downloadBlob(blob, filename) {
 }
 
 function normalizeMode(mode) {
-    if (!mode) return 'desktop';
-    const lower = mode.toLowerCase();
-    if (lower === 'mobile') return 'mobile';
-    if (lower === 'tablet') return 'tablet';
-    if (lower === 'desktop') return 'desktop';
+    if (!mode) {
+        return 'desktop';
+    }
+    const value = mode.toLowerCase();
+    if (value === 'mobile') {
+        return 'mobile';
+    }
+    if (value === 'tablet') {
+        return 'tablet';
+    }
+    if (value === 'desktop') {
+        return 'desktop';
+    }
     throw new Error('Unsupported mode; pick mobile, tablet, or desktop.');
 }
 
-export async function requestCapture(payload) {
-    if (!payload) throw new Error('Missing capture payload.');
-    const url = payload.url;
-    if (!url) throw new Error('Missing field url; add to body.');
-    let cookie = '';
-    if (payload.cookie) cookie = payload.cookie;
-    const mode = normalizeMode(payload.mode);
-    const response = await fetch('/capture', {
+export async function fetchSitemap(url) {
+    if (!url) {
+        throw new Error('Missing field url; add to request.');
+    }
+    const endpoint = `/capture/sitemap?url=${encodeURIComponent(url)}`;
+    const response = await fetch(endpoint);
+    ensureOk(response, 'Sitemap request failed.');
+    const data = await response.json();
+    let list = [];
+    if (data) {
+        if (Array.isArray(data.urls)) {
+            list = data.urls;
+        }
+    }
+    if (!list.length) {
+        throw new Error('Sitemap returned no URLs.');
+    }
+    return list;
+}
+
+export async function storeCapture(payload) {
+    if (!payload) {
+        throw new Error('Missing capture payload.');
+    }
+    const body = JSON.stringify(payload);
+    const response = await fetch('/capture/store', {
         method: 'POST',
         headers: JSON_HEADERS,
-        body: JSON.stringify({ url, cookie, mode })
+        body
     });
-    ensureOk(response, 'Capture request failed.');
-    return response.json().catch(() => null);
+    ensureOk(response, 'Failed to persist capture.');
+    const data = await response.json();
+    if (!data) {
+        throw new Error('Capture response missing image.');
+    }
+    if (!data.image) {
+        throw new Error('Capture response missing image.');
+    }
+    return data.image;
+}
+
+export async function fetchStatus() {
+    const response = await fetch('/capture/status');
+    ensureOk(response, 'Status fetch failed.');
+    return response.json();
 }
 
 export async function startSession() {
     const response = await fetch('/session', { method: 'POST' });
     ensureOk(response, 'Session creation failed.');
+    return response.json();
 }
 
 export async function clearSession(host) {
     let endpoint = '/session';
-    if (host) endpoint += `?host=${encodeURIComponent(host)}`;
+    if (host) {
+        endpoint += `?host=${encodeURIComponent(host)}`;
+    }
     const response = await fetch(endpoint, { method: 'DELETE' });
     ensureOk(response, 'Session cleanup failed.');
 }
 
 export async function downloadPdf() {
-    const response = await fetch('/pdf');
+    const response = await fetch('/export/pdf');
     ensureOk(response, 'PDF export failed.');
     const blob = await response.blob();
     downloadBlob(blob, 'screenshots.pdf');
 }
 
 export async function saveOfflineBundle() {
-    const css = await fetchText('/static/css/style.min.css');
-    const moduleEntries = [];
-    for (const module of MODULES) {
-        const code = await fetchText(module.path);
-        const url = encodeModule(code);
-        moduleEntries.push({ specifier: module.specifier, url });
-    }
-
-    const doc = document.documentElement.cloneNode(true);
-    const head = doc.querySelector('head');
-    if (!head) throw new Error('Missing head element.');
-
-    doc.querySelectorAll('link[rel="stylesheet"]').forEach((node) => node.remove());
-    const style = document.createElement('style');
-    style.textContent = css;
-    head.appendChild(style);
-
-    doc.querySelectorAll('script').forEach((node) => node.remove());
-    doc.querySelectorAll('script[type="importmap"]').forEach((node) => node.remove());
-
-    const map = document.createElement('script');
-    map.type = 'importmap';
-    map.textContent = buildImportMap(moduleEntries);
-    head.appendChild(map);
-
-    const moduleScript = document.createElement('script');
-    moduleScript.type = 'module';
-    moduleScript.textContent = "import 'app/main';";
-    doc.body.appendChild(moduleScript);
-
-    const images = doc.querySelectorAll('img');
-    for (const img of images) {
-        const dataUrl = await imageToDataUrl(img.src);
-        img.src = dataUrl;
-    }
-
-    const finalHtml = '<!DOCTYPE html>\n' + doc.outerHTML;
-    const blob = new Blob([finalHtml], { type: 'text/html' });
+    const response = await fetch('/export/offline');
+    ensureOk(response, 'Offline bundle export failed.');
+    const blob = await response.blob();
     downloadBlob(blob, 'screenshot-pro.html');
 }
+
+export { normalizeMode };

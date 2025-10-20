@@ -1,17 +1,142 @@
 import { createGallery } from 'app/gallery';
-import { createSseClient } from 'app/sse';
-import { requestCapture, startSession, clearSession, downloadPdf, saveOfflineBundle } from 'app/actions';
+import { capturePages } from 'app/capture';
+import { fetchSitemap, storeCapture, fetchStatus, startSession, clearSession, downloadPdf, saveOfflineBundle, normalizeMode } from 'app/actions';
 import { bindUi } from 'app/events';
 
-const state = { currentHost: '' };
+const state = { busy: false, currentHost: '' };
 
 export function deriveHost(url) {
-    if (!url) return '';
+    if (!url) {
+        return '';
+    }
     try {
         return new URL(url).hostname;
     } catch (error) {
         return '';
     }
+}
+
+function disableForm(form, disabled) {
+    if (!form) {
+        return;
+    }
+    let controls = [];
+    if (form.elements) {
+        controls = Array.from(form.elements);
+    }
+    for (const control of controls) {
+        if (!control) {
+            continue;
+        }
+        control.disabled = disabled;
+    }
+}
+
+function setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, nextState) {
+    appShell.dataset.sidebar = nextState;
+    const expanded = nextState === 'expanded';
+    if (expanded) {
+        toggleBtn.setAttribute('aria-expanded', 'true');
+        sidebar.setAttribute('aria-hidden', 'false');
+    } else {
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        sidebar.setAttribute('aria-hidden', 'true');
+    }
+    if (labelEl) {
+        if (expanded) {
+            labelEl.textContent = 'Hide controls';
+        } else {
+            labelEl.textContent = 'Show controls';
+        }
+    }
+    if (iconEl) {
+        if (expanded) {
+            iconEl.textContent = '⟨';
+        } else {
+            iconEl.textContent = '⟩';
+        }
+    }
+}
+
+function initSidebar(appShell, sidebar, toggleBtn, labelEl, iconEl) {
+    let initial = appShell.dataset.sidebar;
+    if (!initial) {
+        initial = 'expanded';
+    }
+    let prefersCollapsed = false;
+    if (typeof window.matchMedia === 'function') {
+        const query = window.matchMedia('(max-width: 960px)');
+        if (query) {
+            if (query.matches) {
+                prefersCollapsed = true;
+            }
+        }
+    }
+    if (prefersCollapsed) {
+        initial = 'collapsed';
+    }
+    setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, initial);
+    toggleBtn.addEventListener('click', () => {
+        const current = appShell.dataset.sidebar;
+        let next = 'collapsed';
+        if (current === 'collapsed') {
+            next = 'expanded';
+        }
+        setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, next);
+    });
+}
+
+async function hydrateFromServer(gallery, setStatus) {
+    try {
+        const data = await fetchStatus();
+        if (!data) {
+            return;
+        }
+        if (Array.isArray(data.images)) {
+            for (const image of data.images) {
+                gallery.append(image);
+            }
+        }
+        const summary = data.session;
+        if (summary) {
+            if (Array.isArray(summary.hosts)) {
+                if (summary.hosts.length) {
+                    state.currentHost = summary.hosts[summary.hosts.length - 1];
+                }
+            }
+        }
+        if (setStatus) {
+            setStatus('Ready.');
+        }
+    } catch (error) {
+        console.error(error);
+        if (setStatus) {
+            setStatus('Failed to load session status.');
+        }
+    }
+}
+
+function buildCapturePayload(result) {
+    return {
+        host: result.meta.host,
+        pageUrl: result.meta.pageUrl,
+        pageTitle: result.meta.pageTitle,
+        mode: result.meta.mode,
+        imageData: result.imageData,
+        dimensions: result.meta.dimensions
+    };
+}
+
+function reportError(setStatus, error) {
+    console.error(error);
+    let message = 'Action failed.';
+    if (error) {
+        if (error.message) {
+            message = error.message;
+        }
+    }
+    setStatus(message);
+    window.alert(message);
 }
 
 function init() {
@@ -24,18 +149,59 @@ function init() {
     const clearDiskBtn = document.getElementById('clearDiskBtn');
     const exportPdfBtn = document.getElementById('exportPdfBtn');
     const savePageBtn = document.getElementById('savePageBtn');
+    const sidebarToggleBtn = document.getElementById('sidebarToggle');
     const galleryContainer = document.getElementById('result');
     const statusEl = document.getElementById('sessionStatus');
     const appShell = document.querySelector('.app-shell');
     const sidebar = document.getElementById('sidebar');
-    const sidebarToggleBtn = document.getElementById('sidebarToggle');
     const sidebarToggleLabel = document.getElementById('sidebarToggleLabel');
     const sidebarToggleIcon = document.getElementById('sidebarToggleIcon');
 
-    if (!appShell) throw new Error('Missing app shell.');
-    if (!sidebar) throw new Error('Missing sidebar.');
-    if (!sidebarToggleBtn) throw new Error('Missing sidebar toggle.');
-    if (!modeInputs.length) throw new Error('Missing viewport controls.');
+    if (!form) {
+        throw new Error('Missing capture form.');
+    }
+    if (!urlInput) {
+        throw new Error('Missing URL input.');
+    }
+    if (!cookieInput) {
+        throw new Error('Missing cookie input.');
+    }
+    if (!modeInputs) {
+        throw new Error('Missing mode inputs.');
+    }
+    if (!modeInputs.length) {
+        throw new Error('Missing mode options.');
+    }
+    if (!newSessionBtn) {
+        throw new Error('Missing new session button.');
+    }
+    if (!clearGalleryBtn) {
+        throw new Error('Missing clear gallery button.');
+    }
+    if (!clearDiskBtn) {
+        throw new Error('Missing clear disk button.');
+    }
+    if (!exportPdfBtn) {
+        throw new Error('Missing export PDF button.');
+    }
+    if (!savePageBtn) {
+        throw new Error('Missing save offline button.');
+    }
+    if (!sidebarToggleBtn) {
+        throw new Error('Missing sidebar toggle button.');
+    }
+    if (!galleryContainer) {
+        throw new Error('Missing gallery container.');
+    }
+    if (!statusEl) {
+        throw new Error('Missing status element.');
+    }
+    if (!appShell) {
+        throw new Error('Missing app shell.');
+    }
+    if (!sidebar) {
+        throw new Error('Missing sidebar.');
+    }
 
     const gallery = createGallery(galleryContainer);
 
@@ -43,85 +209,9 @@ function init() {
         statusEl.textContent = message;
     }
 
-    function handleStreamStatus(message) {
-        setStatus(message);
-    }
-
-    function handleStreamError(error) {
-        console.error(error);
-        setStatus('Stream error; retry.');
-    }
-
-    function handleScreenshot(image) {
-        if (!image) return;
-        const host = image.host;
-        if (host) state.currentHost = host;
-        if (state.currentHost) {
-            gallery.append(image);
-            return;
-        }
-        const fallback = deriveHost(image.pageUrl);
-        if (fallback) state.currentHost = fallback;
-        gallery.append(image);
-    }
-
-    const stream = createSseClient({
-        endpoint: '/stream',
-        onScreenshot: handleScreenshot,
-        onStatus: handleStreamStatus,
-        onError: handleStreamError
-    });
-
-    function reportError(error) {
-        console.error(error);
-        const message = error && error.message ? error.message : 'Action failed.';
-        setStatus(message);
-        window.alert(message);
-    }
-
-    function setSidebarState(nextState) {
-        appShell.dataset.sidebar = nextState;
-        const expanded = nextState === 'expanded';
-        sidebarToggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-        sidebar.setAttribute('aria-hidden', expanded ? 'false' : 'true');
-        if (sidebarToggleLabel) {
-            sidebarToggleLabel.textContent = expanded ? 'Hide controls' : 'Show controls';
-        }
-        if (sidebarToggleIcon) {
-            sidebarToggleIcon.textContent = expanded ? '⟨' : '⟩';
-        }
-    }
-
-    function toggleSidebar() {
-        const currentState = appShell.dataset.sidebar;
-        if (currentState === 'collapsed') {
-            setSidebarState('expanded');
-            return;
-        }
-        setSidebarState('collapsed');
-    }
-
-    let initialSidebarState = appShell.dataset.sidebar || 'expanded';
-    let prefersCollapsed = false;
-    if (typeof window.matchMedia === 'function') {
-        const mediaQuery = window.matchMedia('(max-width: 960px)');
-        if (mediaQuery.matches) {
-            prefersCollapsed = true;
-        }
-    }
-    if (prefersCollapsed) {
-        initialSidebarState = 'collapsed';
-    }
-    setSidebarState(initialSidebarState);
-
-    function formatModeLabel(mode) {
-        let value = mode;
-        if (!value) value = 'desktop';
-        const lower = value.toLowerCase();
-        if (lower === 'mobile') return 'Mobile';
-        if (lower === 'tablet') return 'Tablet';
-        return 'Desktop';
-    }
+    initSidebar(appShell, sidebar, sidebarToggleBtn, sidebarToggleLabel, sidebarToggleIcon);
+    setStatus('Loading session…');
+    hydrateFromServer(gallery, setStatus);
 
     bindUi({
         form,
@@ -135,23 +225,48 @@ function init() {
         savePageBtn,
         sidebarToggleBtn,
         onValidationError: setStatus,
-        onError: reportError,
+        onError: (error) => reportError(setStatus, error),
         onCapture: async (payload) => {
-            let mode = 'desktop';
-            if (payload.mode) mode = payload.mode;
-            const host = deriveHost(payload.url);
-            if (!host) throw new Error('Invalid URL; check input.');
-            state.currentHost = host;
-            const modeLabel = formatModeLabel(mode);
-            setStatus(`Capturing ${host} — ${modeLabel}…`);
-            stream.open();
-            await requestCapture(payload);
-            setStatus('Capture started.');
+            if (state.busy) {
+                throw new Error('Capture already running; wait for completion.');
+            }
+            state.busy = true;
+            disableForm(form, true);
+            try {
+                const mode = normalizeMode(payload.mode);
+                setStatus('Fetching sitemap…');
+                const urls = await fetchSitemap(payload.url);
+                setStatus(`Capturing ${urls.length} pages…`);
+                await capturePages({
+                    urls,
+                    mode,
+                    cookie: payload.cookie,
+                    onStatus: (message) => setStatus(message),
+                    onCapture: async (result) => {
+                        setStatus(`Saving ${result.meta.pageUrl}`);
+                        const stored = await storeCapture(buildCapturePayload(result));
+                        let nextHost = stored.host;
+                        if (!nextHost) {
+                            nextHost = deriveHost(result.meta.pageUrl);
+                        }
+                        state.currentHost = nextHost;
+                        gallery.append(stored);
+                        setStatus(`Stored ${stored.pageUrl}`);
+                    }
+                });
+                setStatus('Capture complete.');
+            } catch (error) {
+                reportError(setStatus, error);
+            } finally {
+                state.busy = false;
+                disableForm(form, false);
+            }
         },
         onNewSession: async () => {
+            setStatus('Creating new session…');
             await startSession();
-            state.currentHost = '';
             gallery.clear();
+            state.currentHost = '';
             setStatus('Session reset.');
         },
         onClearGallery: () => {
@@ -160,9 +275,12 @@ function init() {
         },
         onClearDisk: async () => {
             const confirmed = window.confirm('Delete stored screenshots?');
-            if (!confirmed) return;
+            if (!confirmed) {
+                return;
+            }
             await clearSession(state.currentHost);
             gallery.clear();
+            state.currentHost = '';
             setStatus('Disk cleared.');
         },
         onExportPdf: async () => {
@@ -171,18 +289,23 @@ function init() {
             setStatus('PDF downloaded.');
         },
         onSavePage: async () => {
-            setStatus('Packaging offline bundle…');
+            setStatus('Building offline bundle…');
             await saveOfflineBundle();
             setStatus('Offline bundle saved.');
         },
-        onToggleSidebar: toggleSidebar
+        onToggleSidebar: () => {
+            const current = appShell.dataset.sidebar;
+            let next = 'collapsed';
+            if (current === 'collapsed') {
+                next = 'expanded';
+            }
+            setSidebarState(appShell, sidebar, sidebarToggleBtn, sidebarToggleLabel, sidebarToggleIcon, next);
+        }
     });
 }
 
-if (typeof document !== 'undefined') {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
 }
