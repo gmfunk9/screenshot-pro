@@ -8,6 +8,7 @@ export function bindUi(options) {
     const clearDiskBtn = options.clearDiskBtn;
     const exportPdfBtn = options.exportPdfBtn;
     const savePageBtn = options.savePageBtn;
+    const sidebarToggleBtn = options.sidebarToggleBtn;
 
     if (!form) throw new Error('Missing capture form.');
     if (!urlInput) throw new Error('Missing URL input.');
@@ -17,6 +18,7 @@ export function bindUi(options) {
     if (!clearDiskBtn) throw new Error('Missing clear disk button.');
     if (!exportPdfBtn) throw new Error('Missing export PDF button.');
     if (!savePageBtn) throw new Error('Missing save page button.');
+    if (!sidebarToggleBtn) throw new Error('Missing sidebar toggle button.');
 
     function notifyValidation(message) {
         const handler = options.onValidationError;
@@ -93,10 +95,17 @@ export function bindUi(options) {
         }
     }
 
+    function handleSidebarToggle() {
+        const handler = options.onToggleSidebar;
+        if (!handler) return;
+        handler();
+    }
+
     form.addEventListener('submit', handleCapture);
     newSessionBtn.addEventListener('click', handleNewSession);
     clearGalleryBtn.addEventListener('click', handleClearGallery);
     clearDiskBtn.addEventListener('click', handleClearDisk);
     exportPdfBtn.addEventListener('click', handleExportPdf);
     savePageBtn.addEventListener('click', handleSavePage);
+    sidebarToggleBtn.addEventListener('click', handleSidebarToggle);
 }

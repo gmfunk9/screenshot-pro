@@ -18,8 +18,8 @@
     </script>
 </head>
 <body>
-    <div class="app-shell">
-        <aside class="sidebar" aria-label="Capture controls">
+    <div class="app-shell" data-sidebar="expanded">
+        <aside id="sidebar" class="sidebar" aria-label="Capture controls">
             <header class="sidebar__header">
                 <h1 class="sidebar__title">Screenshot Pro</h1>
                 <p class="sidebar__subtitle">Capture, review, export.</p>
@@ -55,6 +55,10 @@
                 <p class="gallery__placeholder">Screenshots will appear here as they finish.</p>
             </div>
         </main>
+        <button type="button" id="sidebarToggle" class="button sidebar-toggle" aria-expanded="true" aria-controls="sidebar">
+            <span id="sidebarToggleIcon" class="sidebar-toggle__icon" aria-hidden="true">⟨</span>
+            <span id="sidebarToggleLabel" class="sidebar-toggle__label">Hide controls</span>
+        </button>
     </div>
     <script type="module">import 'app/main';</script>
 </body>

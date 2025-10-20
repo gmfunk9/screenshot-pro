@@ -25,6 +25,15 @@ function init() {
     const savePageBtn = document.getElementById('savePageBtn');
     const galleryContainer = document.getElementById('result');
     const statusEl = document.getElementById('sessionStatus');
+    const appShell = document.querySelector('.app-shell');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggleBtn = document.getElementById('sidebarToggle');
+    const sidebarToggleLabel = document.getElementById('sidebarToggleLabel');
+    const sidebarToggleIcon = document.getElementById('sidebarToggleIcon');
+
+    if (!appShell) throw new Error('Missing app shell.');
+    if (!sidebar) throw new Error('Missing sidebar.');
+    if (!sidebarToggleBtn) throw new Error('Missing sidebar toggle.');
 
     const gallery = createGallery(galleryContainer);
 
@@ -68,6 +77,41 @@ function init() {
         window.alert(message);
     }
 
+    function setSidebarState(nextState) {
+        appShell.dataset.sidebar = nextState;
+        const expanded = nextState === 'expanded';
+        sidebarToggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        sidebar.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+        if (sidebarToggleLabel) {
+            sidebarToggleLabel.textContent = expanded ? 'Hide controls' : 'Show controls';
+        }
+        if (sidebarToggleIcon) {
+            sidebarToggleIcon.textContent = expanded ? '⟨' : '⟩';
+        }
+    }
+
+    function toggleSidebar() {
+        const currentState = appShell.dataset.sidebar;
+        if (currentState === 'collapsed') {
+            setSidebarState('expanded');
+            return;
+        }
+        setSidebarState('collapsed');
+    }
+
+    let initialSidebarState = appShell.dataset.sidebar || 'expanded';
+    let prefersCollapsed = false;
+    if (typeof window.matchMedia === 'function') {
+        const mediaQuery = window.matchMedia('(max-width: 960px)');
+        if (mediaQuery.matches) {
+            prefersCollapsed = true;
+        }
+    }
+    if (prefersCollapsed) {
+        initialSidebarState = 'collapsed';
+    }
+    setSidebarState(initialSidebarState);
+
     bindUi({
         form,
         urlInput,
@@ -77,6 +121,7 @@ function init() {
         clearDiskBtn,
         exportPdfBtn,
         savePageBtn,
+        sidebarToggleBtn,
         onValidationError: setStatus,
         onError: reportError,
         onCapture: async (payload) => {
@@ -114,7 +159,8 @@ function init() {
             setStatus('Packaging offline bundle…');
             await saveOfflineBundle();
             setStatus('Offline bundle saved.');
-        }
+        },
+        onToggleSidebar: toggleSidebar
     });
 }
 
