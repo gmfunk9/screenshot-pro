@@ -39,6 +39,14 @@ test('POST /capture rejects missing url', async () => {
     assert.equal(response.body.error, 'Missing field url; add to body.');
 });
 
+test('POST /capture rejects invalid mode', async () => {
+    const response = await request(app)
+        .post('/capture')
+        .send({ url: 'https://example.com', mode: 'weird' });
+    assert.equal(response.status, 400);
+    assert.equal(response.body.error, 'Unsupported mode; use mobile, tablet, or desktop.');
+});
+
 test('GET /pdf fails without screenshots', async () => {
     const response = await request(app).get('/pdf');
     assert.equal(response.status, 400);

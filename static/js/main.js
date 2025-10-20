@@ -18,6 +18,7 @@ function init() {
     const form = document.getElementById('capture-form');
     const urlInput = document.getElementById('urlInput');
     const cookieInput = document.getElementById('cookieInput');
+    const modeInputs = document.querySelectorAll('input[name="mode"]');
     const newSessionBtn = document.getElementById('newSessionBtn');
     const clearGalleryBtn = document.getElementById('clearGalleryBtn');
     const clearDiskBtn = document.getElementById('clearDiskBtn');
@@ -34,6 +35,7 @@ function init() {
     if (!appShell) throw new Error('Missing app shell.');
     if (!sidebar) throw new Error('Missing sidebar.');
     if (!sidebarToggleBtn) throw new Error('Missing sidebar toggle.');
+    if (!modeInputs.length) throw new Error('Missing viewport controls.');
 
     const gallery = createGallery(galleryContainer);
 
@@ -112,10 +114,20 @@ function init() {
     }
     setSidebarState(initialSidebarState);
 
+    function formatModeLabel(mode) {
+        let value = mode;
+        if (!value) value = 'desktop';
+        const lower = value.toLowerCase();
+        if (lower === 'mobile') return 'Mobile';
+        if (lower === 'tablet') return 'Tablet';
+        return 'Desktop';
+    }
+
     bindUi({
         form,
         urlInput,
         cookieInput,
+        modeInputs,
         newSessionBtn,
         clearGalleryBtn,
         clearDiskBtn,
@@ -125,10 +137,13 @@ function init() {
         onValidationError: setStatus,
         onError: reportError,
         onCapture: async (payload) => {
+            let mode = 'desktop';
+            if (payload.mode) mode = payload.mode;
             const host = deriveHost(payload.url);
             if (!host) throw new Error('Invalid URL; check input.');
             state.currentHost = host;
-            setStatus(`Capturing ${host}…`);
+            const modeLabel = formatModeLabel(mode);
+            setStatus(`Capturing ${host} — ${modeLabel}…`);
             stream.open();
             await requestCapture(payload);
             setStatus('Capture started.');

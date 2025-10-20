@@ -1,5 +1,14 @@
 const PLACEHOLDER_TEXT = 'Screenshots will appear here as they finish.';
 
+function formatMode(mode) {
+    if (!mode) return 'Desktop';
+    const lower = mode.toLowerCase();
+    if (lower === 'mobile') return 'Mobile';
+    if (lower === 'tablet') return 'Tablet';
+    if (lower === 'desktop') return 'Desktop';
+    return mode;
+}
+
 function buildPlaceholder() {
     const message = document.createElement('p');
     message.className = 'gallery__placeholder';
@@ -28,6 +37,25 @@ function buildImageCard(image) {
     const card = document.createElement('article');
     card.className = 'card';
 
+    const header = document.createElement('header');
+    header.className = 'card__meta';
+    let hasHeader = false;
+    if (image.host) {
+        const title = document.createElement('p');
+        title.className = 'card__title';
+        title.textContent = image.host;
+        header.appendChild(title);
+        hasHeader = true;
+    }
+    if (image.mode) {
+        const badge = document.createElement('span');
+        badge.className = 'card__badge';
+        badge.textContent = formatMode(image.mode);
+        header.appendChild(badge);
+        hasHeader = true;
+    }
+    if (hasHeader) card.appendChild(header);
+
     const media = document.createElement('img');
     media.className = 'card__media';
     media.src = image.imageUrl;
@@ -50,7 +78,12 @@ function buildErrorCard(image) {
 
     const message = document.createElement('div');
     message.className = 'card__actions';
-    message.textContent = `Capture failed: ${image.error}`;
+    let prefix = 'Capture failed';
+    if (image.mode) {
+        const modeLabel = formatMode(image.mode);
+        prefix = `Capture failed (${modeLabel})`;
+    }
+    message.textContent = `${prefix}: ${image.error}`;
 
     card.appendChild(message);
     return card;

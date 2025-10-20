@@ -2,7 +2,7 @@ import path from 'path';
 import express from 'express';
 import PDFDocument from 'pdfkit';
 import { fetchSitemap } from './sitemap.js';
-import { captureDesktopScreenshot } from './screenshot.js';
+import { captureScreenshot } from './screenshot.js';
 import { enqueue } from './capture-queue.js';
 import { newSession, clearSessionDisk, clearSiteDisk, sessionSummary, listImages } from './session.js';
 import config from '../config.js';
@@ -17,12 +17,12 @@ function broadcast(payload) {
     }
 }
 
-async function processCapture(urls, cookie) {
+async function processCapture(urls, cookie, mode) {
     const tasks = [];
     for (const target of urls) {
         const job = enqueue(async () => {
             try {
-                const imageData = await captureDesktopScreenshot(target, cookie);
+                const imageData = await captureScreenshot(target, cookie, mode);
                 broadcast({ imageData });
                 return imageData;
             } catch (error) {
@@ -30,6 +30,7 @@ async function processCapture(urls, cookie) {
                     status: 'error',
                     host: new URL(target).hostname,
                     pageUrl: target,
+                    mode,
                     error: error.message
                 };
                 broadcast({ imageData: failure });
@@ -41,20 +42,45 @@ async function processCapture(urls, cookie) {
     return Promise.all(tasks);
 }
 
+function normalizeMode(input) {
+    if (!input) return 'desktop';
+    const value = String(input).toLowerCase();
+    const allowed = ['mobile', 'tablet', 'desktop'];
+    for (const mode of allowed) {
+        if (mode === value) return value;
+    }
+    return '';
+}
+
 router.post('/capture', async (req, res) => {
-    const url = req.body && req.body.url;
+    let url = '';
+    if (req.body) {
+        if (req.body.url) url = req.body.url;
+    }
     if (!url) {
         res.status(400).json({ error: 'Missing field url; add to body.' });
         return;
     }
-    const cookie = req.body.cookie || '';
+    let cookie = '';
+    if (req.body) {
+        if (req.body.cookie) cookie = req.body.cookie;
+    }
+    let modeInput = '';
+    if (req.body) {
+        if (req.body.mode) modeInput = req.body.mode;
+    }
+    const mode = normalizeMode(modeInput);
+    if (!mode) {
+        res.status(400).json({ error: 'Unsupported mode; use mobile, tablet, or desktop.' });
+        return;
+    }
     try {
         const urls = await fetchSitemap(url);
         if (!urls.length) {
             res.status(400).json({ error: 'Sitemap returned no URLs.' });
             return;
         }
-        const results = await processCapture(urls, cookie);
+        const results = await processCapture(urls, cookie, mode);
         res.json({ success: true, count: results.length });
     } catch (error) {
         res.status(500).json({ error: error.message });

@@ -27,9 +27,16 @@ test('sitemapCacheDir ensures dir', () => {
 // Test generateFilePaths output
 
 test('generateFilePaths builds paths', () => {
-    const { finalFilePath, relativePath } = generateFilePaths('http://example.com/page');
+    const { finalFilePath, relativePath } = generateFilePaths('http://example.com/page', 'desktop');
     assert.ok(finalFilePath.includes('example_com'));
     assert.match(relativePath, /^\/static\/screenshots\/\d+\/example_com\//);
+    assert.ok(finalFilePath.endsWith('page_desktop.jpg'));
+});
+
+test('generateFilePaths appends mode slug', () => {
+    const { finalFilePath, relativePath } = generateFilePaths('http://example.com/page', 'mobile');
+    assert.ok(finalFilePath.endsWith('page_mobile.jpg'));
+    assert.ok(relativePath.endsWith('page_mobile.jpg'));
 });
 
 test.after(() => {

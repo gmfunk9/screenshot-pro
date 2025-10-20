@@ -32,6 +32,20 @@ test('gallery renders cards for captures', () => {
     assert.equal(container.querySelectorAll('.card').length, 0);
 });
 
+test('gallery shows mode badge', () => {
+    const container = setupDom();
+    const gallery = createGallery(container);
+    gallery.append({
+        status: 'captured',
+        imageUrl: '/static/screenshots/test.jpg',
+        pageUrl: 'https://example.com',
+        host: 'example.com',
+        mode: 'mobile'
+    });
+    const badge = container.querySelector('.card__badge');
+    assert.ok(badge.textContent.includes('Mobile'));
+});
+
 test('gallery renders failure messages', () => {
     const container = setupDom();
     const gallery = createGallery(container);

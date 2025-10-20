@@ -52,15 +52,26 @@ function downloadBlob(blob, filename) {
     URL.revokeObjectURL(url);
 }
 
+function normalizeMode(mode) {
+    if (!mode) return 'desktop';
+    const lower = mode.toLowerCase();
+    if (lower === 'mobile') return 'mobile';
+    if (lower === 'tablet') return 'tablet';
+    if (lower === 'desktop') return 'desktop';
+    throw new Error('Unsupported mode; pick mobile, tablet, or desktop.');
+}
+
 export async function requestCapture(payload) {
     if (!payload) throw new Error('Missing capture payload.');
     const url = payload.url;
     if (!url) throw new Error('Missing field url; add to body.');
-    const cookie = payload.cookie || '';
+    let cookie = '';
+    if (payload.cookie) cookie = payload.cookie;
+    const mode = normalizeMode(payload.mode);
     const response = await fetch('/capture', {
         method: 'POST',
         headers: JSON_HEADERS,
-        body: JSON.stringify({ url, cookie })
+        body: JSON.stringify({ url, cookie, mode })
     });
     ensureOk(response, 'Capture request failed.');
     return response.json().catch(() => null);

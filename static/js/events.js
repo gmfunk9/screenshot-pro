@@ -3,6 +3,7 @@ export function bindUi(options) {
     const form = options.form;
     const urlInput = options.urlInput;
     const cookieInput = options.cookieInput;
+    const modeInputs = options.modeInputs;
     const newSessionBtn = options.newSessionBtn;
     const clearGalleryBtn = options.clearGalleryBtn;
     const clearDiskBtn = options.clearDiskBtn;
@@ -13,6 +14,8 @@ export function bindUi(options) {
     if (!form) throw new Error('Missing capture form.');
     if (!urlInput) throw new Error('Missing URL input.');
     if (!cookieInput) throw new Error('Missing cookie input.');
+    if (!modeInputs) throw new Error('Missing mode inputs.');
+    if (!modeInputs.length) throw new Error('Missing mode options.');
     if (!newSessionBtn) throw new Error('Missing new session button.');
     if (!clearGalleryBtn) throw new Error('Missing clear gallery button.');
     if (!clearDiskBtn) throw new Error('Missing clear disk button.');
@@ -32,6 +35,14 @@ export function bindUi(options) {
         handler(error);
     }
 
+    function resolveMode() {
+        for (const input of modeInputs) {
+            if (!input) continue;
+            if (input.checked) return input.value;
+        }
+        return 'desktop';
+    }
+
     async function handleCapture(event) {
         event.preventDefault();
         const rawUrl = urlInput.value.trim();
@@ -39,7 +50,11 @@ export function bindUi(options) {
             notifyValidation('Provide a URL to capture.');
             return;
         }
-        const payload = { url: rawUrl, cookie: cookieInput.value.trim() };
+        const payload = {
+            url: rawUrl,
+            cookie: cookieInput.value.trim(),
+            mode: resolveMode()
+        };
         const handler = options.onCapture;
         if (!handler) return;
         try {

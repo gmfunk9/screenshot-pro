@@ -33,6 +33,23 @@
                     <span class="field__label">Cookie header</span>
                     <input type="text" id="cookieInput" name="cookie" placeholder="key=value;">
                 </label>
+                <fieldset class="fieldset">
+                    <legend class="field__label">Viewport mode</legend>
+                    <div class="segmented" role="radiogroup" aria-label="Viewport mode">
+                        <label class="segmented__option">
+                            <input type="radio" name="mode" value="mobile">
+                            <span>Mobile</span>
+                        </label>
+                        <label class="segmented__option">
+                            <input type="radio" name="mode" value="tablet">
+                            <span>Tablet</span>
+                        </label>
+                        <label class="segmented__option">
+                            <input type="radio" name="mode" value="desktop" checked>
+                            <span>Desktop</span>
+                        </label>
+                    </div>
+                </fieldset>
                 <button type="submit" class="button button--primary">Capture sitemap</button>
             </form>
             <section class="stack stack--lg" aria-label="Session controls">
