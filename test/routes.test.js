@@ -57,8 +57,8 @@ test('GET /pdf streams PDF when screenshots exist', async () => {
     const dir = newSession();
     const hostDir = path.join(dir, 'example_com');
     fs.mkdirSync(hostDir, { recursive: true });
-    const imagePath = path.join(hostDir, 'home.jpg');
-    await sharp({ create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 0, b: 0 } } }).jpeg().toFile(imagePath);
+    const imagePath = path.join(hostDir, 'home.png');
+    await sharp({ create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 0, b: 0 } } }).png().toFile(imagePath);
     const response = await request(app).get('/pdf');
     assert.equal(response.status, 200);
     assert.equal(response.header['content-type'], 'application/pdf');

@@ -64,7 +64,7 @@ export function listImages() {
         if (!fs.statSync(dir).isDirectory()) continue;
         const entries = fs.readdirSync(dir);
         for (const entry of entries) {
-            if (!entry.endsWith('.jpg')) continue;
+            if (!entry.endsWith('.png')) continue;
             files.push({ host: unslugHost(hostSlug), filepath: path.join(dir, entry) });
         }
     }

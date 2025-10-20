@@ -33,8 +33,8 @@ export function generateFilePaths(url, mode) {
     const sessionId = path.basename(sessionDir);
     const hostDir = path.join(sessionDir, hostSlug);
     ensureDir(hostDir);
-    let filename = `${fileSlug}.jpg`;
-    if (modeSlug) filename = `${fileSlug}_${modeSlug}.jpg`;
+    let filename = `${fileSlug}.png`;
+    if (modeSlug) filename = `${fileSlug}_${modeSlug}.png`;
     const finalFilePath = path.join(hostDir, filename);
     const relativePath = `/static/screenshots/${sessionId}/${hostSlug}/${filename}`;
     return { sessionId, hostDir, finalFilePath, relativePath, hostname, hostSlug, fileSlug };

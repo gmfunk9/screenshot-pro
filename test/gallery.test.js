@@ -20,14 +20,14 @@ test('gallery renders cards for captures', () => {
     const gallery = createGallery(container);
     gallery.append({
         status: 'captured',
-        imageUrl: '/static/screenshots/test.jpg',
+        imageUrl: '/static/screenshots/test.png',
         pageUrl: 'https://example.com',
         dimensions: { width: 100, height: 200 }
     });
     const cards = container.querySelectorAll('.card');
     assert.equal(cards.length, 1);
     const image = cards[0].querySelector('img');
-    assert.equal(image.src.endsWith('/static/screenshots/test.jpg'), true);
+    assert.equal(image.src.endsWith('/static/screenshots/test.png'), true);
     gallery.clear();
     assert.equal(container.querySelectorAll('.card').length, 0);
 });
@@ -37,7 +37,7 @@ test('gallery shows mode badge', () => {
     const gallery = createGallery(container);
     gallery.append({
         status: 'captured',
-        imageUrl: '/static/screenshots/test.jpg',
+        imageUrl: '/static/screenshots/test.png',
         pageUrl: 'https://example.com',
         host: 'example.com',
         mode: 'mobile'
