@@ -1,6 +1,7 @@
 import { createGallery } from 'app/gallery';
 
 const PROXY_ENDPOINT = 'https://testing2.funkpd.shop/cors.php';
+const SITEMAP_ENDPOINT = 'https://getsitemap.funkpd.com/json';
 const FETCH_COOLDOWN_MS = 5000;
 const VIEWPORTS = {
     mobile: 390,
@@ -379,9 +380,14 @@ function waitForIframeLoad(frame, statusEl) {
 }
 
 async function capturePage(params) {
-    const { url, mode, width, statusEl, gallery } = params;
-    writeStatus(statusEl, '');
-    appendStatus(statusEl, '→ Capture requested', { url, mode, width });
+    const { url, mode, width, statusEl, gallery, batchIndex, batchTotal, hasNext } = params;
+    const detail = { url, mode, width };
+    if (Number.isInteger(batchIndex) && Number.isInteger(batchTotal)) {
+        if (batchIndex >= 1 && batchTotal >= batchIndex) {
+            detail.batch = { index: batchIndex, total: batchTotal };
+        }
+    }
+    appendStatus(statusEl, '→ Capture requested', detail);
     const html = await fetchSnapshot(url, statusEl);
     appendStatus(statusEl, '→ Building iframe', { width });
     const frame = buildIframe(width);
@@ -420,8 +426,12 @@ async function capturePage(params) {
             dimensions: { width, height }
         };
         gallery.append(image);
-        appendStatus(statusEl, `✓ Done (${width} × ${height})`);
-        scheduleFetchCooldown(statusEl);
+        appendStatus(statusEl, `✓ Done (${width} × ${height})`, { pageUrl: url });
+        if (hasNext) {
+            scheduleFetchCooldown(statusEl);
+        } else {
+            nextFetchReadyAt = 0;
+        }
     } finally {
         removeIframe(frame);
     }
@@ -463,17 +473,113 @@ function validateUrl(value) {
     if (!value) throw new Error('Missing field url; add to form.');
     const trimmed = value.trim();
     const pattern = /^https?:\/\//i;
-    if (!pattern.test(trimmed)) throw new Error('Invalid URL; include http or https prefix.');
+    if (!pattern.test(trimmed)) throw new Error(`Invalid URL; include http or https prefix (${value}).`);
     return trimmed;
+}
+
+function parseUrlInput(rawValue) {
+    if (!rawValue) throw new Error('Missing field url; add to form.');
+    const trimmed = rawValue.trim();
+    if (!trimmed) throw new Error('Provide at least one URL to capture.');
+    const tokens = trimmed.split(/\s+/);
+    const urls = [];
+    const seen = new Set();
+    for (const token of tokens) {
+        if (!token) continue;
+        const normalized = validateUrl(token);
+        if (seen.has(normalized)) continue;
+        seen.add(normalized);
+        urls.push(normalized);
+    }
+    if (!urls.length) throw new Error('Provide at least one valid URL to capture.');
+    return urls;
+}
+
+async function fetchSitemapUrls(baseUrl, statusEl) {
+    appendStatus(statusEl, '→ Fetching sitemap', { url: baseUrl });
+    const endpoint = `${SITEMAP_ENDPOINT}?url=${encodeURIComponent(baseUrl)}`;
+    let response;
+    try {
+        response = await fetch(endpoint);
+    } catch (error) {
+        appendStatus(statusEl, '❌ Sitemap request failed', { url: baseUrl, message: error.message });
+        throw new Error('Sitemap request failed; check network or CORS.');
+    }
+    if (!response.ok) {
+        appendStatus(statusEl, '❌ Sitemap response error', { url: baseUrl, status: response.status });
+        throw new Error(`Sitemap request failed (${response.status}).`);
+    }
+    let data;
+    try {
+        data = await response.json();
+    } catch (error) {
+        appendStatus(statusEl, '❌ Sitemap parse error', { url: baseUrl });
+        throw new Error('Failed to parse sitemap response.');
+    }
+    const entries = data && Array.isArray(data.sitemap) ? data.sitemap : [];
+    if (!entries.length) {
+        appendStatus(statusEl, '❌ Sitemap empty', { url: baseUrl });
+        throw new Error('Sitemap returned no URLs.');
+    }
+    appendStatus(statusEl, '✓ Sitemap loaded', { url: baseUrl, count: entries.length });
+    return entries;
+}
+
+function normalizeCaptureUrl(value) {
+    if (!value) return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    const isHttp = /^https?:\/\//i.test(trimmed);
+    if (!isHttp) return '';
+    return trimmed;
+}
+
+async function collectSitemapUrls(rawValue, statusEl) {
+    const bases = parseUrlInput(rawValue);
+    const seen = new Set();
+    const urls = [];
+    for (const baseUrl of bases) {
+        const entries = await fetchSitemapUrls(baseUrl, statusEl);
+        for (const entry of entries) {
+            const normalized = normalizeCaptureUrl(entry);
+            if (!normalized) continue;
+            if (seen.has(normalized)) continue;
+            seen.add(normalized);
+            urls.push(normalized);
+        }
+    }
+    if (!urls.length) throw new Error('No valid URLs returned from sitemap.');
+    appendStatus(statusEl, '✓ Aggregated sitemap URLs', { total: urls.length });
+    return urls;
 }
 
 async function handleCapture(form, urlInput, modeInputs, statusEl, gallery) {
     try {
         disableForm(form, true);
-        const url = validateUrl(urlInput.value);
+        writeStatus(statusEl, '');
+        const urls = await collectSitemapUrls(urlInput.value, statusEl);
+        const total = urls.length;
         const mode = readMode(modeInputs);
         const width = resolveViewportWidth(mode);
-        await capturePage({ url, mode, width, statusEl, gallery });
+        nextFetchReadyAt = 0;
+        appendStatus(statusEl, '→ Batch capture start', { total });
+        for (let index = 0; index < total; index += 1) {
+            const pageUrl = urls[index];
+            const batchIndex = index + 1;
+            const hasNext = batchIndex < total;
+            appendStatus(statusEl, `→ Starting ${batchIndex}/${total}`, { pageUrl });
+            await capturePage({
+                url: pageUrl,
+                mode,
+                width,
+                statusEl,
+                gallery,
+                batchIndex,
+                batchTotal: total,
+                hasNext
+            });
+        }
+        appendStatus(statusEl, '✓ Batch capture complete', { total });
     } catch (error) {
         console.error(error);
         let message = 'Capture failed; check console.';
