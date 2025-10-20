@@ -17,6 +17,16 @@ function broadcast(payload) {
     }
 }
 
+function safeHostname(value) {
+    if (!value) return '';
+    try {
+        const parsed = new URL(value);
+        return parsed.hostname;
+    } catch (error) {
+        return '';
+    }
+}
+
 async function processCapture(urls, cookie, mode) {
     const tasks = [];
     for (const target of urls) {
@@ -28,7 +38,7 @@ async function processCapture(urls, cookie, mode) {
             } catch (error) {
                 const failure = {
                     status: 'error',
-                    host: new URL(target).hostname,
+                    host: safeHostname(target),
                     pageUrl: target,
                     mode,
                     error: error.message
