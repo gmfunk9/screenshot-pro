@@ -1,3 +1,5 @@
+import { buildOfflineBundle } from 'app/offline';
+
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 function ensureOk(response, errorMessage) {
@@ -103,10 +105,19 @@ export async function downloadPdf() {
 }
 
 export async function saveOfflineBundle() {
-    const response = await fetch('/export/offline');
-    ensureOk(response, 'Offline bundle export failed.');
-    const blob = await response.blob();
-    downloadBlob(blob, 'screenshot-pro.html');
+    const bundle = await buildOfflineBundle();
+    if (!bundle) {
+        throw new Error('Offline bundle builder returned no data.');
+    }
+    if (!bundle.html) {
+        throw new Error('Offline bundle missing HTML content.');
+    }
+    let filename = 'screenshot-pro.html';
+    if (bundle.filename) {
+        filename = bundle.filename;
+    }
+    const blob = new Blob([bundle.html], { type: 'text/html;charset=UTF-8' });
+    downloadBlob(blob, filename);
 }
 
 export { normalizeMode };

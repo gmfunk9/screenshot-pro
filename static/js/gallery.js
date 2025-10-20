@@ -1,5 +1,13 @@
 const PLACEHOLDER_TEXT = 'Screenshots will appear here as they finish.';
 
+function normalizeModeValue(mode) {
+    if (!mode) return 'desktop';
+    if (typeof mode !== 'string') return 'desktop';
+    const trimmed = mode.trim();
+    if (trimmed === '') return 'desktop';
+    return trimmed;
+}
+
 function formatMode(mode) {
     if (!mode) return 'Desktop';
     const lower = mode.toLowerCase();
@@ -7,6 +15,58 @@ function formatMode(mode) {
     if (lower === 'tablet') return 'Tablet';
     if (lower === 'desktop') return 'Desktop';
     return mode;
+}
+
+function normalizeDimensions(size) {
+    const result = { width: 0, height: 0 };
+    if (!size) return result;
+    const width = Number(size.width);
+    if (Number.isFinite(width)) {
+        result.width = width;
+    }
+    const height = Number(size.height);
+    if (Number.isFinite(height)) {
+        result.height = height;
+    }
+    return result;
+}
+
+export function describeImage(image) {
+    if (!image) throw new Error('Missing image payload.');
+    const normalizedMode = normalizeModeValue(image.mode);
+    const meta = {
+        host: '',
+        pageTitle: 'Captured screenshot',
+        pageUrl: '',
+        imageUrl: '',
+        mode: normalizedMode,
+        modeLabel: formatMode(normalizedMode),
+        dimensions: normalizeDimensions(image.dimensions)
+    };
+    if (typeof image.host === 'string') {
+        if (image.host !== '') {
+            meta.host = image.host;
+        }
+    }
+    if (typeof image.pageTitle === 'string') {
+        if (image.pageTitle !== '') {
+            meta.pageTitle = image.pageTitle;
+        }
+    }
+    if (typeof image.pageUrl === 'string') {
+        if (image.pageUrl !== '') {
+            meta.pageUrl = image.pageUrl;
+        }
+    }
+    if (typeof image.imageUrl === 'string') {
+        if (image.imageUrl !== '') {
+            meta.imageUrl = image.imageUrl;
+        }
+    }
+    if (meta.imageUrl === '') {
+        throw new Error('Missing image URL; ensure capture stored.');
+    }
+    return meta;
 }
 
 function buildPlaceholder() {
@@ -34,38 +94,49 @@ function applySize(media, size) {
 }
 
 function buildImageCard(image) {
+    let meta;
+    try {
+        meta = describeImage(image);
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
     const card = document.createElement('article');
     card.className = 'card';
 
     const header = document.createElement('header');
     header.className = 'card__meta';
     let hasHeader = false;
-    if (image.host) {
+    if (meta.host !== '') {
         const title = document.createElement('p');
         title.className = 'card__title';
-        title.textContent = image.host;
+        title.textContent = meta.host;
         header.appendChild(title);
         hasHeader = true;
     }
-    if (image.mode) {
+    if (meta.modeLabel !== '') {
         const badge = document.createElement('span');
         badge.className = 'card__badge';
-        badge.textContent = formatMode(image.mode);
+        badge.textContent = meta.modeLabel;
         header.appendChild(badge);
         hasHeader = true;
     }
-    if (hasHeader) card.appendChild(header);
+    if (hasHeader) {
+        card.appendChild(header);
+    }
 
     const media = document.createElement('img');
     media.className = 'card__media';
-    media.src = image.imageUrl;
-    media.alt = image.pageTitle || 'Captured screenshot';
-    applySize(media, image.dimensions);
+    media.src = meta.imageUrl;
+    media.alt = meta.pageTitle;
+    applySize(media, meta.dimensions);
 
     const actions = document.createElement('div');
     actions.className = 'card__actions';
-    actions.appendChild(buildLink(image.pageUrl, 'View page'));
-    actions.appendChild(buildLink(image.imageUrl, 'View image'));
+    if (meta.pageUrl !== '') {
+        actions.appendChild(buildLink(meta.pageUrl, 'View page'));
+    }
+    actions.appendChild(buildLink(meta.imageUrl, 'View image'));
 
     card.appendChild(media);
     card.appendChild(actions);
@@ -117,6 +188,7 @@ export function createGallery(container) {
             return;
         }
         const card = buildImageCard(image);
+        if (!card) return;
         container.appendChild(card);
     }
 
