@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client-Side Screenshot Demo — 1920px width (gradient-safe)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;margin:20px auto;max-width:1000px;background:#f9f9f9;color:#222}
+  input,button{font:inherit;padding:6px 10px;border-radius:4px}
+  #url{width:360px;border:1px solid #ccc}
+  button{background:#4db760;color:#fff;border:0;cursor:pointer}
+  #screenshot{margin-top:20px;border:1px solid #ddd;display:inline-block;max-width:100%}
+  #status{margin-top:10px;color:#555}
+</style>
+</head>
+<body>
+<h1>Client-Side Screenshot Demo (1920 px width)</h1>
+<p>Renders a fully inlined snapshot from <code>https://testing2.funkpd.shop/cors.php</code> at exactly 1920&nbsp;px viewport width, then screenshots it. Uses foreignObject rendering to avoid CanvasGradient errors.</p>
+
+<input type="text" id="url" value="https://funkpd.com" placeholder="https://example.com">
+<button id="goBtn">Take Screenshot</button>
+<div id="status"></div>
+<div id="screenshot"></div>
+
+<script>
+const PROXY = "https://testing2.funkpd.shop/cors.php";
+const VIEW_WIDTH = 1920;
+
+function status(msg){ document.getElementById("status").innerHTML = `<em>${msg}</em>`; }
+
+async function settleFrameContent(doc){
+  // kill animations that can cause layout churn or NaNs in computed gradients
+  const fix = doc.createElement('style');
+  fix.textContent = `
+    html, body { margin:0 !important; padding:0 !important; width:${VIEW_WIDTH}px !important; min-width:${VIEW_WIDTH}px !important; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  `;
+  (doc.head || doc.documentElement).appendChild(fix);
+
+  // wait next frame to apply styles
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  // wait for fonts and images (best-effort)
+  if (doc.fonts && doc.fonts.ready) { try { await doc.fonts.ready; } catch(_){} }
+  const imgs = Array.from(doc.images || []);
+  await Promise.all(imgs.map(img => (img.decode ? img.decode() : Promise.resolve()).catch(()=>{})));
+}
+
+function pageHeight(doc){
+  return Math.max(
+    doc.documentElement.scrollHeight,
+    doc.body ? doc.body.scrollHeight : 0,
+    doc.documentElement.offsetHeight
+  );
+}
+
+async function takeScreenshot(){
+  const u = document.getElementById("url").value.trim();
+  if(!/^https?:\/\//i.test(u)){ alert("Enter full URL starting with http or https"); return; }
+
+  const box = document.getElementById("screenshot");
+  box.innerHTML = "";
+  status("Fetching pre-inlined snapshot via proxy...");
+
+  try{
+    const res = await fetch(`${PROXY}?url=${encodeURIComponent(u)}`);
+    if(!res.ok) throw new Error(`Proxy fetch failed (${res.status})`);
+    const html = await res.text();
+
+    status("Rendering snapshot in hidden iframe @1920px...");
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "absolute";
+    iframe.style.left = "-10000px";
+    iframe.style.top = "0";
+    iframe.style.border = "none";
+    iframe.style.width = VIEW_WIDTH + "px"; // CSS width to set viewport
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+
+    await settleFrameContent(doc);
+
+    // set iframe height to full page to stabilize layout/gradients
+    const h = pageHeight(doc);
+    iframe.style.height = h + "px";
+
+    status("Capturing screenshot...");
+    const canvas = await html2canvas(doc.documentElement, {
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      allowTaint: false,
+      scale: 1,
+      // ensure viewport used for CSS units is exactly 1920 x full height
+      windowWidth: VIEW_WIDTH,
+      windowHeight: h,
+      // use browser's own rendering path to avoid CanvasGradient NaNs
+      foreignObjectRendering: true
+    });
+
+    box.appendChild(canvas);
+    document.body.removeChild(iframe);
+    status(`Screenshot complete (${VIEW_WIDTH} × ${h})`);
+  } catch(e){
+    console.error(e);
+    status("Error: " + e.message);
+    box.innerHTML = `<p style="color:red">${e.message}</p>`;
+  }
+}
+
+document.getElementById("goBtn").addEventListener("click", takeScreenshot);
+</script>
+</body>
+</html>
