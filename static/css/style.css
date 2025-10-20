@@ -155,6 +155,7 @@ body {
     scrollbar-gutter: stable;
     align-items: flex-start;
     scroll-snap-type: x proximity;
+    contain: paint;
 }
 
 .app-shell[data-sidebar='expanded'] .gallery {
@@ -196,6 +197,9 @@ body {
     overflow-y: auto;
     flex: 0 0 auto;
     scroll-snap-align: start;
+    content-visibility: auto;
+    contain: layout paint style;
+    contain-intrinsic-size: 1000px;
 }
 
 .card__meta {

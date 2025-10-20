@@ -127,9 +127,12 @@ function buildImageCard(image) {
 
     const media = document.createElement('img');
     media.className = 'card__media';
-    media.src = meta.imageUrl;
+    media.loading = 'lazy';
+    media.decoding = 'async';
+    media.fetchPriority = 'low';
     media.alt = meta.pageTitle;
     applySize(media, meta.dimensions);
+    media.src = meta.imageUrl;
 
     const actions = document.createElement('div');
     actions.className = 'card__actions';
@@ -189,7 +192,9 @@ export function createGallery(container) {
         }
         const card = buildImageCard(image);
         if (!card) return;
-        container.appendChild(card);
+        const batch = document.createDocumentFragment();
+        batch.appendChild(card);
+        container.appendChild(batch);
     }
 
     function clear() {
