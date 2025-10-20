@@ -17,6 +17,19 @@ function broadcast(payload) {
     }
 }
 
+function resolveHostname(url) {
+    if (!url) return '';
+    let parsed;
+    try {
+        parsed = new URL(url);
+    } catch (error) {
+        return '';
+    }
+    const host = parsed.hostname;
+    if (!host) return '';
+    return host;
+}
+
 async function processCapture(urls, cookie, mode) {
     const tasks = [];
     for (const target of urls) {
@@ -26,12 +39,16 @@ async function processCapture(urls, cookie, mode) {
                 broadcast({ imageData });
                 return imageData;
             } catch (error) {
+                let message = 'Unknown capture error.';
+                if (error) {
+                    if (error.message) message = error.message;
+                }
                 const failure = {
                     status: 'error',
-                    host: new URL(target).hostname,
+                    host: resolveHostname(target),
                     pageUrl: target,
                     mode,
-                    error: error.message
+                    error: message
                 };
                 broadcast({ imageData: failure });
                 return failure;
