@@ -1,12 +1,14 @@
 import { createGallery } from 'app/gallery';
 
 const PROXY_ENDPOINT = 'https://testing2.funkpd.shop/cors.php';
-const FETCH_TIMEOUT_MS = 300000;
+const FETCH_COOLDOWN_MS = 300000;
 const VIEWPORTS = {
     mobile: 390,
     tablet: 834,
     desktop: 1920
 };
+
+let nextFetchReadyAt = 0;
 
 function selectById(id) {
     const element = document.getElementById(id);
@@ -163,20 +165,33 @@ async function renderCanvas(doc, width, height) {
     });
 }
 
+function scheduleFetchCooldown() {
+    nextFetchReadyAt = Date.now() + FETCH_COOLDOWN_MS;
+    console.info(`[local] Cooling down for ${FETCH_COOLDOWN_MS}ms before next fetch.`);
+}
+
+async function waitForNextFetchSlot() {
+    const now = Date.now();
+    if (now >= nextFetchReadyAt) return;
+    const waitMs = nextFetchReadyAt - now;
+    console.info(`[local] Waiting ${waitMs}ms before proxy fetch.`);
+    await new Promise((resolve) => {
+        window.setTimeout(resolve, waitMs);
+    });
+}
+
 async function fetchSnapshot(url) {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
-        const proxyUrl = createProxyUrl(url);
-        const response = await fetch(proxyUrl, { signal: controller.signal });
-        if (!response.ok) throw new Error(`Proxy fetch failed; status ${response.status}.`);
-        return await response.text();
-    } catch (error) {
-        if (error && error.name === 'AbortError') throw new Error('Proxy fetch timed out; wait before retrying.');
-        throw error;
-    } finally {
-        window.clearTimeout(timer);
+    await waitForNextFetchSlot();
+    const proxyUrl = createProxyUrl(url);
+    console.info('[local] Fetching snapshot via proxy.', { url, proxyUrl });
+    const response = await fetch(proxyUrl);
+    if (!response.ok) {
+        console.error('[local] Proxy fetch failed.', { status: response.status, url });
+        throw new Error(`Proxy fetch failed; status ${response.status}.`);
     }
+    const text = await response.text();
+    console.info('[local] Snapshot fetched.', { url, bytes: text.length });
+    return text;
 }
 
 function validateUrl(value) {
@@ -188,17 +203,21 @@ function validateUrl(value) {
 
 async function capturePage(params) {
     const { url, mode, width, statusEl, gallery } = params;
+    console.info('[local] Capture requested.', { url, mode, width });
     setStatus(statusEl, 'Fetching pre-inlined snapshot via proxy…');
     const html = await fetchSnapshot(url);
     setStatus(statusEl, 'Rendering snapshot in hidden iframe…');
     const frame = buildIframe(width);
     try {
         const doc = writeHtmlIntoFrame(frame, html);
+        console.info('[local] Snapshot written to iframe.', { url, mode });
         await settleFrameContent(doc, width);
+        console.info('[local] Frame content settled.', { url });
         const height = computePageHeight(doc);
         frame.style.height = `${height}px`;
         setStatus(statusEl, 'Capturing screenshot via html2canvas…');
         const canvas = await renderCanvas(doc, width, height);
+        console.info('[local] Canvas rendered.', { url, width, height });
         const dataUrl = canvas.toDataURL('image/png');
         let title = doc.title;
         if (!title) title = 'Captured page';
@@ -211,7 +230,9 @@ async function capturePage(params) {
             dimensions: { width, height }
         };
         gallery.append(image);
+        console.info('[local] Capture stored in gallery.', { url, mode });
         setStatus(statusEl, `Screenshot complete (${width} × ${height}).`);
+        scheduleFetchCooldown();
     } finally {
         removeIframe(frame);
     }
