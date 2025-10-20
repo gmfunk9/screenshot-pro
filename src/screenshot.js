@@ -32,11 +32,11 @@ async function preparePage(page, url, cookie, viewport) {
     await page.setViewport({ width: viewport.width, height: viewport.height });
     await cacheAssets(page);
     await page.goto(url, { timeout: 60000, waitUntil: 'networkidle2' });
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
     await simulateMouseMovement(page);
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     await page.setViewport({ width: viewport.width, height });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
 }
 
 function buildSuccess(paths, dimensions, status, url, mode) {
