@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screenshot Pro — Local Mode</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaN1rh+uUUw0C9BULL3jmdT7eS2VXGkfDPYoAeQp3uRT6RyQUTEsAiTmSa7/2gnY2hSsaYw77tzAbLw1yxv7Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "app/gallery": "/static/js/gallery.js"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="app-shell" data-sidebar="expanded">
+        <aside id="sidebar" class="sidebar" aria-label="Capture controls">
+            <header class="sidebar__header">
+                <h1 class="sidebar__title">Screenshot Pro</h1>
+                <p class="sidebar__subtitle">Local HTML2Canvas capture (slow &amp; experimental).</p>
+            </header>
+            <form id="capture-form" class="stack stack--md" novalidate>
+                <label class="field">
+                    <span class="field__label">Page URL</span>
+                    <input type="url" id="urlInput" name="url" placeholder="https://example.com" required>
+                </label>
+                <label class="field">
+                    <span class="field__label">Cookie header</span>
+                    <input type="text" id="cookieInput" name="cookie" placeholder="Optional; sent via proxy" disabled>
+                </label>
+                <fieldset class="fieldset">
+                    <legend class="field__label">Viewport mode</legend>
+                    <div class="segmented" role="radiogroup" aria-label="Viewport mode">
+                        <label class="segmented__option">
+                            <input type="radio" name="mode" value="mobile">
+                            <span>Mobile</span>
+                        </label>
+                        <label class="segmented__option">
+                            <input type="radio" name="mode" value="tablet">
+                            <span>Tablet</span>
+                        </label>
+                        <label class="segmented__option">
+                            <input type="radio" name="mode" value="desktop" checked>
+                            <span>Desktop</span>
+                        </label>
+                    </div>
+                </fieldset>
+                <p class="field__help">Proxy: https://testing2.funkpd.shop/cors.php — long timeout to avoid repeat load.</p>
+                <button type="submit" class="button button--primary">Capture page locally</button>
+            </form>
+            <section class="stack stack--lg" aria-label="Session controls">
+                <div class="cluster">
+                    <button id="newSessionBtn" type="button" class="button">New session</button>
+                    <button id="clearGalleryBtn" type="button" class="button">Clear gallery</button>
+                </div>
+                <p class="field__help">Captures happen in your browser. Expect long waits on large pages.</p>
+            </section>
+            <footer class="sidebar__footer" aria-live="polite">
+                <p id="sessionStatus" class="sidebar__status">Idle.</p>
+            </footer>
+        </aside>
+        <main class="gallery" aria-live="polite" aria-label="Screenshot gallery">
+            <div id="result" class="gallery__grid" data-empty>
+                <p class="gallery__placeholder">Screenshots will appear here once captured.</p>
+            </div>
+        </main>
+        <button type="button" id="sidebarToggle" class="button sidebar-toggle" aria-expanded="true" aria-controls="sidebar">
+            <span id="sidebarToggleIcon" class="sidebar-toggle__icon" aria-hidden="true">⟨</span>
+            <span id="sidebarToggleLabel" class="sidebar-toggle__label">Hide controls</span>
+        </button>
+    </div>
+    <script type="module" src="/static/js/local-app.js"></script>
+</body>
+</html>
