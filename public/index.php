@@ -160,6 +160,11 @@ if ($path === '/proxy') {
     return;
 }
 
+if ($path === '/stream') {
+    capture_handle_stream();
+    return;
+}
+
 if ($path === '/export/pdf') {
     pdf_handle_export();
     return;

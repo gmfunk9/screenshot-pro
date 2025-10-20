@@ -7,6 +7,79 @@ require_once __DIR__ . '/session.php';
 
 const SITEMAP_ENDPOINT = 'https://getsitemap.funkpd.com/json';
 
+function capture_session_state(): array
+{
+    $sessionDir = session_path();
+    $sessionId = basename($sessionDir);
+    $images = list_images();
+    $result = [];
+    foreach ($images as $entry) {
+        $host = '';
+        if (isset($entry['host'])) {
+            if (is_string($entry['host'])) {
+                $host = $entry['host'];
+            }
+        }
+        $slug = sanitize_host($host);
+        $relative = '/static/screenshots/' . $sessionId;
+        if ($slug !== '') {
+            $relative .= '/' . $slug;
+        }
+        $filename = '';
+        if (isset($entry['filename'])) {
+            if (is_string($entry['filename'])) {
+                $filename = $entry['filename'];
+            }
+        }
+        if ($filename === '') {
+            continue;
+        }
+        $relative .= '/' . $filename;
+        $meta = [];
+        if (isset($entry['meta'])) {
+            if (is_array($entry['meta'])) {
+                $meta = $entry['meta'];
+            }
+        }
+        $pageUrl = '';
+        if (isset($meta['pageUrl'])) {
+            if (is_string($meta['pageUrl'])) {
+                $pageUrl = $meta['pageUrl'];
+            }
+        }
+        $pageTitle = 'Captured page';
+        if (isset($meta['pageTitle'])) {
+            if (is_string($meta['pageTitle'])) {
+                $pageTitle = $meta['pageTitle'];
+            }
+        }
+        $mode = 'desktop';
+        if (isset($meta['mode'])) {
+            if (is_string($meta['mode'])) {
+                $mode = $meta['mode'];
+            }
+        }
+        $dimensions = ['width' => 0, 'height' => 0];
+        if (isset($meta['dimensions'])) {
+            if (is_array($meta['dimensions'])) {
+                $dimensions = $meta['dimensions'];
+            }
+        }
+        $result[] = [
+            'host' => $host,
+            'imageUrl' => $relative,
+            'pageUrl' => $pageUrl,
+            'pageTitle' => $pageTitle,
+            'mode' => $mode,
+            'dimensions' => $dimensions
+        ];
+    }
+    return [
+        'session' => session_summary(),
+        'images' => $result
+    ];
+}
+
 function capture_handle_sitemap(): void
 {
     $url = '';
@@ -233,58 +306,46 @@ function capture_handle_store(): void
 
 function capture_handle_status(): void
 {
-    $sessionDir = session_path();
-    $sessionId = basename($sessionDir);
-    $images = list_images();
-    $result = [];
-    foreach ($images as $entry) {
-        $slug = sanitize_host($entry['host']);
-        $relative = '/static/screenshots/' . $sessionId;
-        if ($slug !== '') {
-            $relative .= '/' . $slug;
-        }
-        $relative .= '/' . $entry['filename'];
-        $meta = [];
-        if (isset($entry['meta'])) {
-            if (is_array($entry['meta'])) {
-                $meta = $entry['meta'];
-            }
-        }
-        $pageUrl = '';
-        if (isset($meta['pageUrl'])) {
-            if (is_string($meta['pageUrl'])) {
-                $pageUrl = $meta['pageUrl'];
-            }
-        }
-        $pageTitle = 'Captured page';
-        if (isset($meta['pageTitle'])) {
-            if (is_string($meta['pageTitle'])) {
-                $pageTitle = $meta['pageTitle'];
-            }
-        }
-        $mode = 'desktop';
-        if (isset($meta['mode'])) {
-            if (is_string($meta['mode'])) {
-                $mode = $meta['mode'];
-            }
-        }
-        $dimensions = ['width' => 0, 'height' => 0];
-        if (isset($meta['dimensions'])) {
-            if (is_array($meta['dimensions'])) {
-                $dimensions = $meta['dimensions'];
-            }
-        }
-        $result[] = [
-            'host' => $entry['host'],
-            'imageUrl' => $relative,
-            'pageUrl' => $pageUrl,
-            'pageTitle' => $pageTitle,
-            'mode' => $mode,
-            'dimensions' => $dimensions
-        ];
+    $payload = capture_session_state();
+    respond_json(200, $payload);
+}
+
+function capture_handle_stream(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
     }
-    respond_json(200, [
-        'session' => session_summary(),
-        'images' => $result
-    ]);
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    header('Connection: keep-alive');
+    $level = ob_get_level();
+    if ($level > 0) {
+        ob_end_flush();
+    }
+    flush();
+    $lastHash = '';
+    while (true) {
+        $status = connection_status();
+        if ($status !== CONNECTION_NORMAL) {
+            break;
+        }
+        $payload = capture_session_state();
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            echo "event: error\n";
+            echo "data: {\"error\":\"Failed to encode stream payload.\"}\n\n";
+            flush();
+            break;
+        }
+        $hash = sha1($json);
+        if ($hash !== $lastHash) {
+            $lastHash = $hash;
+            echo "event: update\n";
+            echo 'data: ' . $json . "\n\n";
+        } else {
+            echo ": ping\n\n";
+        }
+        flush();
+        sleep(10);
+    }
 }
