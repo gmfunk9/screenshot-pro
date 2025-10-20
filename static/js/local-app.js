@@ -1,7 +1,7 @@
 import { createGallery } from 'app/gallery';
 
 const PROXY_ENDPOINT = 'https://testing2.funkpd.shop/cors.php';
-const FETCH_COOLDOWN_MS = 300000;
+const FETCH_COOLDOWN_MS = 5000;
 const VIEWPORTS = {
     mobile: 390,
     tablet: 834,
@@ -20,6 +20,7 @@ function selectById(id) {
 function writeStatus(target, message) {
     if (!target) return;
     target.textContent = message;
+    target.scrollTop = target.scrollHeight;
 }
 
 function appendStatus(target, message, detail) {
@@ -42,9 +43,11 @@ function appendStatus(target, message, detail) {
     const existing = target.textContent;
     if (!existing) {
         target.textContent = line;
+        target.scrollTop = target.scrollHeight;
         return;
     }
     target.textContent = `${existing}\n${line}`;
+    target.scrollTop = target.scrollHeight;
 }
 
 function deriveHost(url) {
@@ -129,6 +132,10 @@ function buildIframe(width) {
     frame.style.visibility = 'hidden';
     frame.style.display = 'block';
     frame.style.border = '0';
+    frame.style.position = 'absolute';
+    frame.style.left = '-10000px';
+    frame.style.top = '0';
+    frame.style.pointerEvents = 'none';
     document.body.appendChild(frame);
     return frame;
 }
@@ -297,15 +304,12 @@ function measureViewport(frame, doc, statusEl) {
 function computePageHeight(doc, statusEl) {
     const root = doc.documentElement;
     if (!root) throw new Error('Snapshot missing documentElement; aborting.');
-    const values = [];
-    values.push(root.scrollHeight);
-    values.push(root.offsetHeight);
     const body = doc.body;
-    if (body) {
-        values.push(body.scrollHeight);
-        values.push(body.offsetHeight);
-    }
-    const height = Math.max(...values);
+    const scrollHeight = root.scrollHeight;
+    const offsetHeight = root.offsetHeight;
+    let bodyScroll = 0;
+    if (body) bodyScroll = body.scrollHeight;
+    const height = Math.max(scrollHeight, offsetHeight, bodyScroll);
     appendStatus(statusEl, 'Computed doc height', { height });
     return height;
 }
@@ -499,6 +503,9 @@ function init() {
 
     if (statusEl) {
         if (!statusEl.style.whiteSpace) statusEl.style.whiteSpace = 'pre-line';
+        if (!statusEl.style.maxHeight) statusEl.style.maxHeight = '200px';
+        if (!statusEl.style.overflowY) statusEl.style.overflowY = 'auto';
+        if (!statusEl.style.paddingRight) statusEl.style.paddingRight = '8px';
     }
 
     const gallery = createGallery(galleryContainer);
