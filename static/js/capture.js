@@ -1,8 +1,9 @@
-const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1920 };
+const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1280 };
 const PROXY_ENDPOINT = '/proxy';
-const MAX_CAPTURE_HEIGHT = 6000;
-const CAPTURE_SCALE = 0.75;
-const EXPORT_MIME = 'image/png';
+const MAX_CAPTURE_HEIGHT = 1280;
+const CAPTURE_SCALE = 0.25;
+const EXPORT_MIME = 'image/webp';
+const EXPORT_QUALITY = 0.82;
 
 function notify(statusFn, message) {
     if (!statusFn) {
@@ -70,6 +71,7 @@ function removeFrame(frame) {
     if (!frame) {
         return;
     }
+    frame.src = 'about:blank';
     const parent = frame.parentNode;
     if (!parent) {
         return;
@@ -173,6 +175,80 @@ function clampCaptureHeight(height) {
     return height;
 }
 
+function limitDocumentHeight(doc, height) {
+    const root = doc.documentElement;
+    if (root) {
+        root.style.overflow = 'hidden';
+        root.style.maxHeight = `${height}px`;
+        root.style.contain = 'layout paint style';
+    }
+    const body = doc.body;
+    if (!body) {
+        return;
+    }
+    body.style.overflow = 'hidden';
+    body.style.maxHeight = `${height}px`;
+}
+
+function removeNodes(doc, selector) {
+    const nodes = doc.querySelectorAll(selector);
+    for (const node of nodes) {
+        const parent = node.parentNode;
+        if (!parent) {
+            continue;
+        }
+        parent.removeChild(node);
+    }
+}
+
+function softenImages(doc) {
+    const images = doc.querySelectorAll('img');
+    for (const image of images) {
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        image.fetchPriority = 'low';
+        image.referrerPolicy = 'no-referrer';
+        if (image.hasAttribute('srcset')) {
+            image.removeAttribute('srcset');
+        }
+        if (image.sizes) {
+            image.sizes = '';
+        }
+        if (!image.style) {
+            continue;
+        }
+        image.style.maxHeight = `${MAX_CAPTURE_HEIGHT}px`;
+        image.style.height = 'auto';
+        image.style.maxWidth = '100%';
+        image.style.objectFit = 'contain';
+    }
+}
+
+function stripHeavyAssets(doc) {
+    removeNodes(doc, 'video');
+    removeNodes(doc, 'audio');
+    removeNodes(doc, 'iframe');
+    removeNodes(doc, 'object');
+    removeNodes(doc, 'embed');
+    softenImages(doc);
+}
+
+function injectPerformanceStyles(doc, height) {
+    const head = doc.head;
+    if (!head) {
+        return;
+    }
+    const style = doc.createElement('style');
+    style.type = 'text/css';
+    style.textContent = `
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+        * { background-attachment: scroll !important; }
+        html, body { overscroll-behavior: contain !important; }
+        img { image-rendering: crisp-edges !important; max-width: 100% !important; max-height: ${height}px !important; height: auto !important; }
+    `;
+    head.appendChild(style);
+}
+
 async function renderCanvas(doc, width, height) {
     const factory = ensureHtml2Canvas();
     const baseOptions = {
@@ -181,7 +257,10 @@ async function renderCanvas(doc, width, height) {
         allowTaint: false,
         scale: CAPTURE_SCALE,
         windowWidth: width,
-        windowHeight: height
+        windowHeight: height,
+        imageTimeout: 1500,
+        logging: false,
+        removeContainer: true
     };
     try {
         return await factory(doc.documentElement, {
@@ -204,7 +283,7 @@ function canvasToBlob(canvas) {
                 return;
             }
             resolve(blob);
-        }, EXPORT_MIME);
+        }, EXPORT_MIME, EXPORT_QUALITY);
     });
 }
 
@@ -235,7 +314,13 @@ async function canvasToDataUrl(canvas) {
 
 function yieldToBrowser() {
     return new Promise((resolve) => {
-        window.setTimeout(resolve, 0);
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(() => {
+                resolve();
+            });
+            return;
+        }
+        window.setTimeout(resolve, 16);
     });
 }
 
@@ -252,6 +337,7 @@ async function captureSingle(url, options) {
     const onStatus = options.onStatus;
     notify(onStatus, `Capturing ${url}`);
     const html = await fetchSnapshot(url, options.cookie, onStatus);
+    await yieldToBrowser();
     const width = computeViewportWidth(options.mode);
     const frame = createFrame(width);
     try {
@@ -260,10 +346,18 @@ async function captureSingle(url, options) {
         await raf();
         await raf();
         await settleFonts(doc);
+        await yieldToBrowser();
+        injectPerformanceStyles(doc, MAX_CAPTURE_HEIGHT);
+        stripHeavyAssets(doc);
+        await yieldToBrowser();
         const fullHeight = computePageHeight(doc);
         const height = clampCaptureHeight(fullHeight);
+        limitDocumentHeight(doc, height);
         frame.height = height;
         frame.style.height = `${height}px`;
+        frame.style.maxHeight = `${height}px`;
+        frame.style.overflow = 'hidden';
+        await yieldToBrowser();
         const canvas = await renderCanvas(doc, width, height);
         const outputWidth = canvas.width;
         const outputHeight = canvas.height;
