@@ -1,5 +1,8 @@
 const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1920 };
 const PROXY_ENDPOINT = '/proxy';
+const MAX_CAPTURE_HEIGHT = 6000;
+const CAPTURE_SCALE = 0.75;
+const EXPORT_MIME = 'image/png';
 
 function notify(statusFn, message) {
     if (!statusFn) {
@@ -163,13 +166,20 @@ function computePageHeight(doc) {
     return max;
 }
 
+function clampCaptureHeight(height) {
+    if (height > MAX_CAPTURE_HEIGHT) {
+        return MAX_CAPTURE_HEIGHT;
+    }
+    return height;
+}
+
 async function renderCanvas(doc, width, height) {
     const factory = ensureHtml2Canvas();
     const baseOptions = {
         backgroundColor: '#ffffff',
         useCORS: true,
         allowTaint: false,
-        scale: 1,
+        scale: CAPTURE_SCALE,
         windowWidth: width,
         windowHeight: height
     };
@@ -184,6 +194,49 @@ async function renderCanvas(doc, width, height) {
             foreignObjectRendering: true
         });
     }
+}
+
+function canvasToBlob(canvas) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('Canvas blob conversion failed.'));
+                return;
+            }
+            resolve(blob);
+        }, EXPORT_MIME);
+    });
+}
+
+function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result;
+            if (typeof result !== 'string') {
+                reject(new Error('Blob conversion returned non-string result.'));
+                return;
+            }
+            resolve(result);
+        };
+        reader.onerror = () => {
+            reject(new Error('Failed to convert blob to data URL.'));
+        };
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function canvasToDataUrl(canvas) {
+    const blob = await canvasToBlob(canvas);
+    canvas.width = 0;
+    canvas.height = 0;
+    return blobToDataUrl(blob);
+}
+
+function yieldToBrowser() {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, 0);
+    });
 }
 
 function deriveHost(url) {
@@ -207,11 +260,16 @@ async function captureSingle(url, options) {
         await raf();
         await raf();
         await settleFonts(doc);
-        const height = computePageHeight(doc);
+        const fullHeight = computePageHeight(doc);
+        const height = clampCaptureHeight(fullHeight);
         frame.height = height;
         frame.style.height = `${height}px`;
         const canvas = await renderCanvas(doc, width, height);
-        const dataUrl = canvas.toDataURL('image/png');
+        const outputWidth = canvas.width;
+        const outputHeight = canvas.height;
+        await yieldToBrowser();
+        const dataUrl = await canvasToDataUrl(canvas);
+        await yieldToBrowser();
         let title = 'Captured page';
         if (doc.title) {
             title = doc.title;
@@ -227,7 +285,7 @@ async function captureSingle(url, options) {
                 pageUrl: url,
                 pageTitle: title,
                 mode,
-                dimensions: { width, height }
+                dimensions: { width: outputWidth, height: outputHeight }
             }
         };
     } finally {
@@ -259,6 +317,7 @@ export async function capturePages(options) {
         if (onCapture) {
             await onCapture(result);
         }
+        await yieldToBrowser();
     }
 }
 
