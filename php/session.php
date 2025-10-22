@@ -119,6 +119,23 @@ function clear_site(string $host): void
     delete_path($dir);
 }
 
+function is_supported_image_name(string $name): bool
+{
+    if (str_ends_with($name, '.png')) {
+        return true;
+    }
+    if (str_ends_with($name, '.webp')) {
+        return true;
+    }
+    if (str_ends_with($name, '.jpg')) {
+        return true;
+    }
+    if (str_ends_with($name, '.jpeg')) {
+        return true;
+    }
+    return false;
+}
+
 function list_images(): array
 {
     $base = session_path();
@@ -152,7 +169,7 @@ function list_images(): array
             if ($name === '..') {
                 continue;
             }
-            if (!str_ends_with($name, '.png')) {
+            if (!is_supported_image_name($name)) {
                 continue;
             }
             $filepath = $dir . DIRECTORY_SEPARATOR . $name;

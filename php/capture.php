@@ -163,22 +163,57 @@ function capture_handle_proxy(): void
     echo $raw;
 }
 
-function decode_image_payload(string $data): string
+function parse_image_payload(string $data): array
 {
-    $prefix = 'base64,';
-    $pos = strpos($data, $prefix);
-    if ($pos === false) {
-        return '';
+    $result = ['mime' => '', 'binary' => ''];
+    if ($data === '') {
+        return $result;
     }
-    $encoded = substr($data, $pos + strlen($prefix));
+    $comma = strpos($data, ',');
+    if ($comma === false) {
+        return $result;
+    }
+    $header = substr($data, 0, $comma);
+    if ($header === false) {
+        return $result;
+    }
+    $prefix = 'data:';
+    if (!str_starts_with($header, $prefix)) {
+        return $result;
+    }
+    $suffix = ';base64';
+    if (!str_ends_with($header, $suffix)) {
+        return $result;
+    }
+    $mime = substr($header, strlen($prefix), strlen($header) - strlen($prefix) - strlen($suffix));
+    if ($mime === false) {
+        $mime = '';
+    }
+    $encoded = substr($data, $comma + 1);
     if ($encoded === false) {
-        return '';
+        return $result;
     }
     $decoded = base64_decode($encoded, true);
     if ($decoded === false) {
-        return '';
+        return $result;
     }
-    return $decoded;
+    $result['mime'] = strtolower(trim($mime));
+    $result['binary'] = $decoded;
+    return $result;
+}
+
+function image_extension_from_mime(string $mime): string
+{
+    if ($mime === 'image/png') {
+        return 'png';
+    }
+    if ($mime === 'image/jpeg') {
+        return 'jpg';
+    }
+    if ($mime === 'image/webp') {
+        return 'webp';
+    }
+    return 'png';
 }
 
 function write_metadata(string $path, array $meta): bool
@@ -255,10 +290,15 @@ function capture_handle_store(): void
             }
         }
     }
-    $binary = decode_image_payload($imageData);
+    $imagePayload = parse_image_payload($imageData);
+    $binary = $imagePayload['binary'];
     if ($binary === '') {
-        respond_error(400, 'Invalid imageData payload; expected base64 PNG.');
+        respond_error(400, 'Invalid imageData payload; expected data URL base64 image.');
         return;
+    }
+    $mime = $imagePayload['mime'];
+    if ($mime === '') {
+        $mime = 'image/png';
     }
     $sessionDir = session_path();
     $slug = sanitize_host($host);
@@ -268,11 +308,15 @@ function capture_handle_store(): void
     }
     ensure_directory($targetDir);
     $basename = new_session_id();
-    $filename = $basename . '.png';
+    $extension = image_extension_from_mime($mime);
+    if ($extension === '') {
+        $extension = 'png';
+    }
+    $filename = $basename . '.' . $extension;
     $filepath = $targetDir . DIRECTORY_SEPARATOR . $filename;
     $written = file_put_contents($filepath, $binary);
     if ($written === false) {
-        respond_error(500, 'Failed to write capture PNG to disk.');
+        respond_error(500, 'Failed to write capture image to disk.');
         return;
     }
     $metaPath = $targetDir . DIRECTORY_SEPARATOR . $basename . '.json';
@@ -280,7 +324,8 @@ function capture_handle_store(): void
         'pageUrl' => $pageUrl,
         'pageTitle' => $title,
         'mode' => $mode,
-        'dimensions' => $dimensions
+        'dimensions' => $dimensions,
+        'mime' => $mime
     ];
     $metaSaved = write_metadata($metaPath, $meta);
     if (!$metaSaved) {
@@ -299,7 +344,8 @@ function capture_handle_store(): void
         'pageUrl' => $pageUrl,
         'pageTitle' => $title,
         'imageUrl' => $relative,
-        'dimensions' => $dimensions
+        'dimensions' => $dimensions,
+        'mime' => $mime
     ];
     respond_json(201, ['image' => $response]);
 }

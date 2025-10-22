@@ -1,8 +1,9 @@
 const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1280 };
 const PROXY_ENDPOINT = '/proxy';
 const MAX_CAPTURE_HEIGHT = 1280;
-const CAPTURE_SCALE = 0.25;
+const CAPTURE_SCALE = 1;
 const DOWNSCALE_MAX_EDGE = 512;
+const TILE_HEIGHT = 512;
 const PRELOAD_REL_BLOCKLIST = new Set(['preload', 'modulepreload', 'prefetch', 'prerender']);
 const EXPORT_MIME = 'image/png';
 const EXPORT_QUALITY = 0.92;
@@ -125,19 +126,27 @@ function sanitizeHtmlPayload(html) {
     try {
         parsed = new DOMParser().parseFromString(html, 'text/html');
     } catch (error) {
-        return html;
+        return fallbackSanitizeHtml(html);
     }
     if (!parsed) {
-        return html;
+        return fallbackSanitizeHtml(html);
     }
     removeNodes(parsed, 'script');
     stripPreloadLinks(parsed);
     stripInlineEventHandlers(parsed);
     const root = parsed.documentElement;
     if (!root) {
-        return html;
+        return fallbackSanitizeHtml(html);
     }
     return `<!DOCTYPE html>${root.outerHTML}`;
+}
+
+function fallbackSanitizeHtml(html) {
+    let sanitized = html;
+    sanitized = sanitized.replace(/<script[\s\S]*?<\/script>/gi, '');
+    sanitized = sanitized.replace(/\son[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, ' ');
+    sanitized = sanitized.replace(/<link[^>]+rel=["']?(?:preload|modulepreload|prefetch|prerender)["']?[^>]*>/gi, '');
+    return sanitized;
 }
 
 function createFrame(width) {
@@ -340,30 +349,96 @@ function injectPerformanceStyles(doc, height) {
 
 async function renderCanvas(doc, width, height) {
     const factory = ensureHtml2Canvas();
-    const baseOptions = {
+    let safeWidth = Math.round(width);
+    if (!Number.isFinite(safeWidth)) {
+        safeWidth = 1;
+    }
+    if (safeWidth <= 0) {
+        safeWidth = 1;
+    }
+    let safeHeight = Math.round(height);
+    if (!Number.isFinite(safeHeight)) {
+        safeHeight = 1;
+    }
+    if (safeHeight <= 0) {
+        safeHeight = 1;
+    }
+    const output = document.createElement('canvas');
+    output.width = safeWidth;
+    output.height = safeHeight;
+    const context = output.getContext('2d', { alpha: false });
+    if (!context) {
+        output.width = 0;
+        output.height = 0;
+        return renderCanvasFallback(factory, doc, safeWidth, safeHeight);
+    }
+    const step = Math.min(TILE_HEIGHT, safeHeight);
+    for (let offset = 0; offset < safeHeight; offset += step) {
+        let sliceHeight = step;
+        const remaining = safeHeight - offset;
+        if (remaining < step) {
+            sliceHeight = remaining;
+        }
+        const tile = await renderCanvasTile(factory, doc, safeWidth, sliceHeight, offset);
+        if (!tile) {
+            output.width = 0;
+            output.height = 0;
+            return renderCanvasFallback(factory, doc, safeWidth, safeHeight);
+        }
+        context.drawImage(tile, 0, 0, safeWidth, sliceHeight, 0, offset, safeWidth, sliceHeight);
+        tile.width = 0;
+        tile.height = 0;
+        await yieldToBrowser();
+    }
+    return output;
+}
+
+async function renderCanvasFallback(factory, doc, width, height) {
+    const options = buildCanvasOptions(width, height, 0);
+    try {
+        return await factory(doc.documentElement, {
+            ...options,
+            foreignObjectRendering: false
+        });
+    } catch (error) {
+        return factory(doc.documentElement, {
+            ...options,
+            foreignObjectRendering: true
+        });
+    }
+}
+
+async function renderCanvasTile(factory, doc, width, height, offset) {
+    const options = buildCanvasOptions(width, height, offset);
+    try {
+        return await factory(doc.documentElement, {
+            ...options,
+            foreignObjectRendering: false
+        });
+    } catch (error) {
+        return factory(doc.documentElement, {
+            ...options,
+            foreignObjectRendering: true
+        });
+    }
+}
+
+function buildCanvasOptions(width, height, offset) {
+    return {
         backgroundColor: '#ffffff',
         useCORS: true,
         allowTaint: false,
         scale: CAPTURE_SCALE,
         width,
         height,
+        y: offset,
+        scrollY: offset,
         windowWidth: width,
         windowHeight: height,
         imageTimeout: 1500,
         logging: false,
         removeContainer: true
     };
-    try {
-        return await factory(doc.documentElement, {
-            ...baseOptions,
-            foreignObjectRendering: false
-        });
-    } catch (error) {
-        return factory(doc.documentElement, {
-            ...baseOptions,
-            foreignObjectRendering: true
-        });
-    }
 }
 
 function downscaleCanvas(source, maxEdge) {
