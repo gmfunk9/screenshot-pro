@@ -122,7 +122,8 @@ function buildCapturePayload(result) {
         pageUrl: result.meta.pageUrl,
         pageTitle: result.meta.pageTitle,
         mode: result.meta.mode,
-        imageData: result.imageData,
+        blob: result.blob,
+        mime: result.meta.mime,
         dimensions: result.meta.dimensions
     };
 }

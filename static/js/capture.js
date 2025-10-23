@@ -1,12 +1,23 @@
 const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1280 };
 const PROXY_ENDPOINT = '/proxy';
-const MAX_CAPTURE_HEIGHT = 1280;
+const MAX_CAPTURE_HEIGHT = 2048;
 const CAPTURE_SCALE = 1;
 const DOWNSCALE_MAX_EDGE = 512;
 const TILE_HEIGHT = 512;
 const PRELOAD_REL_BLOCKLIST = new Set(['preload', 'modulepreload', 'prefetch', 'prerender']);
-const EXPORT_MIME = 'image/png';
-const EXPORT_QUALITY = 0.92;
+const EXPORT_MIME = 'image/webp';
+const EXPORT_QUALITY = 0.7;
+const HEAVY_STYLE_KEYWORDS = [
+    'animation',
+    'transition',
+    'filter',
+    'backdrop-filter',
+    'box-shadow',
+    'background-attachment',
+    'background-image',
+    'transform',
+    'perspective'
+];
 
 function notify(statusFn, message) {
     if (!statusFn) {
@@ -115,6 +126,29 @@ function stripInlineEventHandlers(doc) {
     }
 }
 
+function stripInlineDangerousStyles(doc) {
+    const elements = doc.querySelectorAll('[style]');
+    for (const element of elements) {
+        const value = element.getAttribute('style');
+        if (!value) {
+            continue;
+        }
+        const lower = value.toLowerCase();
+        let shouldRemove = false;
+        for (const keyword of HEAVY_STYLE_KEYWORDS) {
+            if (!lower.includes(keyword)) {
+                continue;
+            }
+            shouldRemove = true;
+            break;
+        }
+        if (!shouldRemove) {
+            continue;
+        }
+        element.removeAttribute('style');
+    }
+}
+
 function sanitizeHtmlPayload(html) {
     if (typeof html !== 'string') {
         return '';
@@ -132,8 +166,10 @@ function sanitizeHtmlPayload(html) {
         return fallbackSanitizeHtml(html);
     }
     removeNodes(parsed, 'script');
+    removeNodes(parsed, 'style');
     stripPreloadLinks(parsed);
     stripInlineEventHandlers(parsed);
+    stripInlineDangerousStyles(parsed);
     const root = parsed.documentElement;
     if (!root) {
         return fallbackSanitizeHtml(html);
@@ -144,8 +180,10 @@ function sanitizeHtmlPayload(html) {
 function fallbackSanitizeHtml(html) {
     let sanitized = html;
     sanitized = sanitized.replace(/<script[\s\S]*?<\/script>/gi, '');
+    sanitized = sanitized.replace(/<style[\s\S]*?<\/style>/gi, '');
     sanitized = sanitized.replace(/\son[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, ' ');
     sanitized = sanitized.replace(/<link[^>]+rel=["']?(?:preload|modulepreload|prefetch|prerender)["']?[^>]*>/gi, '');
+    sanitized = sanitized.replace(/\sstyle\s*=\s*(["'])[\s\S]*?\1/gi, ' ');
     return sanitized;
 }
 
@@ -160,6 +198,7 @@ function createFrame(width) {
     frame.style.left = '-9999px';
     frame.style.top = '0';
     frame.style.pointerEvents = 'none';
+    frame.setAttribute('sandbox', 'allow-same-origin');
     document.body.appendChild(frame);
     return frame;
 }
@@ -169,6 +208,7 @@ function removeFrame(frame) {
         return;
     }
     frame.src = 'about:blank';
+    frame.removeAttribute('srcdoc');
     const parent = frame.parentNode;
     if (!parent) {
         return;
@@ -186,6 +226,13 @@ function writeFrameHtml(frame, html) {
     }
     if (!doc) {
         throw new Error('Iframe document unavailable; browser blocked frame.');
+    }
+    frame.srcdoc = html;
+    if (frame.contentDocument) {
+        return frame.contentDocument;
+    }
+    if (frame.contentWindow) {
+        return frame.contentWindow.document;
     }
     doc.open();
     doc.write(html);
@@ -234,6 +281,21 @@ async function settleFonts(doc) {
     } catch (error) {
         // Ignore font readiness errors
     }
+}
+
+function haltPendingLoads(doc) {
+    if (!doc) {
+        return;
+    }
+    const root = doc.documentElement;
+    if (!root) {
+        return;
+    }
+    const snapshot = root.innerHTML;
+    if (snapshot === '') {
+        return;
+    }
+    root.innerHTML = snapshot;
 }
 
 function computePageHeight(doc) {
@@ -322,11 +384,6 @@ function softenImages(doc) {
 }
 
 function stripHeavyAssets(doc) {
-    removeNodes(doc, 'video');
-    removeNodes(doc, 'audio');
-    removeNodes(doc, 'iframe');
-    removeNodes(doc, 'object');
-    removeNodes(doc, 'embed');
     softenImages(doc);
 }
 
@@ -338,11 +395,39 @@ function injectPerformanceStyles(doc, height) {
     const style = doc.createElement('style');
     style.type = 'text/css';
     style.textContent = `
-        *, *::before, *::after { animation: none !important; transition: none !important; }
-        * { background-attachment: scroll !important; background-image: none !important; box-shadow: none !important; filter: none !important; }
+        :root, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+            background-color: #ffffff !important;
+            color: #111111 !important;
+        }
+        *, *::before, *::after {
+            animation: none !important;
+            transition: none !important;
+            filter: none !important;
+            box-shadow: none !important;
+            background-image: none !important;
+            background-attachment: scroll !important;
+        }
         @font-face { font-display: swap !important; }
-        html, body { overscroll-behavior: contain !important; }
-        img { image-rendering: crisp-edges !important; max-width: 100% !important; max-height: ${height}px !important; height: auto !important; }
+        html, body {
+            overscroll-behavior: contain !important;
+            margin: 0 auto !important;
+            max-width: 100% !important;
+        }
+        img, video, canvas, iframe {
+            max-width: 100% !important;
+            max-height: ${height}px !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
+            background-color: #ffffff !important;
+        }
+        video, canvas, iframe {
+            display: none !important;
+        }
+        img {
+            image-rendering: crisp-edges !important;
+        }
     `;
     head.appendChild(style);
 }
@@ -388,7 +473,7 @@ async function renderCanvas(doc, width, height) {
         context.drawImage(tile, 0, 0, safeWidth, sliceHeight, 0, offset, safeWidth, sliceHeight);
         tile.width = 0;
         tile.height = 0;
-        await yieldToBrowser();
+        await idle();
     }
     return output;
 }
@@ -496,7 +581,23 @@ function downscaleCanvas(source, maxEdge) {
     return output;
 }
 
-function canvasToBlob(canvas) {
+async function exportCanvasBlob(canvas) {
+    if (!canvas) {
+        throw new Error('Missing canvas for export.');
+    }
+    if (typeof canvas.convertToBlob === 'function') {
+        try {
+            const blob = await canvas.convertToBlob({ type: EXPORT_MIME, quality: EXPORT_QUALITY });
+            if (blob) {
+                return blob;
+            }
+        } catch (error) {
+            // Fallback handled below.
+        }
+    }
+    if (typeof canvas.toBlob !== 'function') {
+        throw new Error('Canvas toBlob unavailable; cannot export.');
+    }
     return new Promise((resolve, reject) => {
         canvas.toBlob((blob) => {
             if (!blob) {
@@ -508,32 +609,7 @@ function canvasToBlob(canvas) {
     });
 }
 
-function blobToDataUrl(blob) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const result = reader.result;
-            if (typeof result !== 'string') {
-                reject(new Error('Blob conversion returned non-string result.'));
-                return;
-            }
-            resolve(result);
-        };
-        reader.onerror = () => {
-            reject(new Error('Failed to convert blob to data URL.'));
-        };
-        reader.readAsDataURL(blob);
-    });
-}
-
-async function canvasToDataUrl(canvas) {
-    const blob = await canvasToBlob(canvas);
-    canvas.width = 0;
-    canvas.height = 0;
-    return blobToDataUrl(blob);
-}
-
-function yieldToBrowser() {
+function idle() {
     return new Promise((resolve) => {
         if (typeof window.requestIdleCallback === 'function') {
             window.requestIdleCallback(() => {
@@ -558,7 +634,7 @@ async function captureSingle(url, options) {
     const onStatus = options.onStatus;
     notify(onStatus, `Capturing ${url}`);
     const rawHtml = await fetchSnapshot(url, options.cookie, onStatus);
-    await yieldToBrowser();
+    await idle();
     const width = computeViewportWidth(options.mode);
     const frame = createFrame(width);
     try {
@@ -571,10 +647,11 @@ async function captureSingle(url, options) {
         await raf();
         await raf();
         await settleFonts(doc);
-        await yieldToBrowser();
+        haltPendingLoads(doc);
+        await idle();
         injectPerformanceStyles(doc, MAX_CAPTURE_HEIGHT);
         stripHeavyAssets(doc);
-        await yieldToBrowser();
+        await idle();
         const fullHeight = computePageHeight(doc);
         const height = clampCaptureHeight(fullHeight);
         limitDocumentHeight(doc, height);
@@ -582,18 +659,25 @@ async function captureSingle(url, options) {
         frame.style.height = `${height}px`;
         frame.style.maxHeight = `${height}px`;
         frame.style.overflow = 'hidden';
-        await yieldToBrowser();
+        await idle();
         const rawCanvas = await renderCanvas(doc, width, height);
-        await yieldToBrowser();
+        await idle();
         let workingCanvas = downscaleCanvas(rawCanvas, DOWNSCALE_MAX_EDGE);
         if (!workingCanvas) {
             workingCanvas = rawCanvas;
         }
         const outputWidth = workingCanvas.width;
         const outputHeight = workingCanvas.height;
-        await yieldToBrowser();
-        const dataUrl = await canvasToDataUrl(workingCanvas);
-        await yieldToBrowser();
+        await idle();
+        const blob = await exportCanvasBlob(workingCanvas);
+        const mime = blob.type !== '' ? blob.type : EXPORT_MIME;
+        workingCanvas.width = 0;
+        workingCanvas.height = 0;
+        if (workingCanvas !== rawCanvas) {
+            rawCanvas.width = 0;
+            rawCanvas.height = 0;
+        }
+        await idle();
         let title = 'Captured page';
         if (doc.title) {
             title = doc.title;
@@ -603,12 +687,13 @@ async function captureSingle(url, options) {
             mode = options.mode;
         }
         return {
-            imageData: dataUrl,
+            blob,
             meta: {
                 host: deriveHost(url),
                 pageUrl: url,
                 pageTitle: title,
                 mode,
+                mime,
                 dimensions: { width: outputWidth, height: outputHeight }
             }
         };
@@ -634,14 +719,35 @@ export async function capturePages(options) {
     }
     const onStatus = options.onStatus;
     const onCapture = options.onCapture;
-    for (let index = 0; index < urls.length; index += 1) {
-        const url = urls[index];
-        notify(onStatus, `Starting ${index + 1} of ${urls.length}`);
-        const result = await captureSingle(url, { mode, cookie: options.cookie, onStatus });
+    const queue = [];
+    for (const entry of urls) {
+        if (typeof entry !== 'string') {
+            continue;
+        }
+        const trimmed = entry.trim();
+        if (trimmed === '') {
+            continue;
+        }
+        queue.push(trimmed);
+    }
+    const total = queue.length;
+    if (!total) {
+        throw new Error('No valid URLs provided for capture.');
+    }
+    let index = 0;
+    while (queue.length) {
+        const nextUrl = queue.shift();
+        if (!nextUrl) {
+            continue;
+        }
+        index += 1;
+        notify(onStatus, `Starting ${index} of ${total}`);
+        const result = await captureSingle(nextUrl, { mode, cookie: options.cookie, onStatus });
         if (onCapture) {
             await onCapture(result);
         }
-        await yieldToBrowser();
+        notify(onStatus, `Finished ${index} of ${total}`);
+        await idle();
     }
 }
 

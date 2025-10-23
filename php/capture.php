@@ -65,13 +65,20 @@ function capture_session_state(): array
                 $dimensions = $meta['dimensions'];
             }
         }
+        $mime = '';
+        if (isset($meta['mime'])) {
+            if (is_string($meta['mime'])) {
+                $mime = $meta['mime'];
+            }
+        }
         $result[] = [
             'host' => $host,
             'imageUrl' => $relative,
             'pageUrl' => $pageUrl,
             'pageTitle' => $pageTitle,
             'mode' => $mode,
-            'dimensions' => $dimensions
+            'dimensions' => $dimensions,
+            'mime' => $mime
         ];
     }
     return [
@@ -163,51 +170,15 @@ function capture_handle_proxy(): void
     echo $raw;
 }
 
-function parse_image_payload(string $data): array
-{
-    $result = ['mime' => '', 'binary' => ''];
-    if ($data === '') {
-        return $result;
-    }
-    $comma = strpos($data, ',');
-    if ($comma === false) {
-        return $result;
-    }
-    $header = substr($data, 0, $comma);
-    if ($header === false) {
-        return $result;
-    }
-    $prefix = 'data:';
-    if (!str_starts_with($header, $prefix)) {
-        return $result;
-    }
-    $suffix = ';base64';
-    if (!str_ends_with($header, $suffix)) {
-        return $result;
-    }
-    $mime = substr($header, strlen($prefix), strlen($header) - strlen($prefix) - strlen($suffix));
-    if ($mime === false) {
-        $mime = '';
-    }
-    $encoded = substr($data, $comma + 1);
-    if ($encoded === false) {
-        return $result;
-    }
-    $decoded = base64_decode($encoded, true);
-    if ($decoded === false) {
-        return $result;
-    }
-    $result['mime'] = strtolower(trim($mime));
-    $result['binary'] = $decoded;
-    return $result;
-}
-
 function image_extension_from_mime(string $mime): string
 {
     if ($mime === 'image/png') {
         return 'png';
     }
     if ($mime === 'image/jpeg') {
+        return 'jpg';
+    }
+    if ($mime === 'image/jpg') {
         return 'jpg';
     }
     if ($mime === 'image/webp') {
@@ -231,26 +202,59 @@ function write_metadata(string $path, array $meta): bool
 
 function capture_handle_store(): void
 {
-    $body = read_json_body();
-    $imageData = '';
-    if (isset($body['imageData'])) {
-        $imageData = (string) $body['imageData'];
+    if (!isset($_FILES['image'])) {
+        respond_error(400, 'Missing field image; add to body.');
+        return;
     }
-    if ($imageData === '') {
-        respond_error(400, 'Missing field imageData; add to body.');
+    $file = $_FILES['image'];
+    if (!is_array($file)) {
+        respond_error(400, 'Invalid field image; expected upload array.');
+        return;
+    }
+    $errorCode = 0;
+    if (isset($file['error'])) {
+        $errorCode = (int) $file['error'];
+    }
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        if ($errorCode === UPLOAD_ERR_NO_FILE) {
+            respond_error(400, 'Missing field image; add to body.');
+            return;
+        }
+        respond_error(400, 'Image upload failed; check payload.');
+        return;
+    }
+    $tmpPath = '';
+    if (isset($file['tmp_name'])) {
+        $tmpPath = (string) $file['tmp_name'];
+    }
+    if ($tmpPath === '') {
+        respond_error(400, 'Uploaded image missing tmp path.');
+        return;
+    }
+    if (!is_uploaded_file($tmpPath)) {
+        respond_error(400, 'Uploaded image invalid; not a file upload.');
+        return;
+    }
+    $binary = file_get_contents($tmpPath);
+    if ($binary === false) {
+        respond_error(500, 'Failed to read uploaded image from disk.');
+        return;
+    }
+    if ($binary === '') {
+        respond_error(400, 'Uploaded image empty; send valid file.');
         return;
     }
     $pageUrl = '';
-    if (isset($body['pageUrl'])) {
-        $pageUrl = trim((string) $body['pageUrl']);
+    if (isset($_POST['pageUrl'])) {
+        $pageUrl = trim((string) $_POST['pageUrl']);
     }
     if ($pageUrl === '') {
         respond_error(400, 'Missing field pageUrl; add to body.');
         return;
     }
     $host = '';
-    if (isset($body['host'])) {
-        $host = trim((string) $body['host']);
+    if (isset($_POST['host'])) {
+        $host = trim((string) $_POST['host']);
     }
     if ($host === '') {
         $parsed = parse_url($pageUrl, PHP_URL_HOST);
@@ -263,42 +267,45 @@ function capture_handle_store(): void
         return;
     }
     $mode = 'desktop';
-    if (isset($body['mode'])) {
-        $candidate = trim((string) $body['mode']);
+    if (isset($_POST['mode'])) {
+        $candidate = trim((string) $_POST['mode']);
         if ($candidate !== '') {
             $mode = $candidate;
         }
     }
     $title = 'Captured page';
-    if (isset($body['pageTitle'])) {
-        $candidate = trim((string) $body['pageTitle']);
+    if (isset($_POST['pageTitle'])) {
+        $candidate = trim((string) $_POST['pageTitle']);
         if ($candidate !== '') {
             $title = $candidate;
         }
     }
-    $dimensions = ['width' => 0, 'height' => 0];
-    if (isset($body['dimensions'])) {
-        $dims = $body['dimensions'];
-        if (is_array($dims)) {
-            if (isset($dims['width'])) {
-                $width = (int) $dims['width'];
-                $dimensions['width'] = $width;
-            }
-            if (isset($dims['height'])) {
-                $height = (int) $dims['height'];
-                $dimensions['height'] = $height;
-            }
+    $width = 0;
+    if (isset($_POST['width'])) {
+        $width = (int) $_POST['width'];
+        if ($width < 0) {
+            $width = 0;
         }
     }
-    $imagePayload = parse_image_payload($imageData);
-    $binary = $imagePayload['binary'];
-    if ($binary === '') {
-        respond_error(400, 'Invalid imageData payload; expected data URL base64 image.');
-        return;
+    $height = 0;
+    if (isset($_POST['height'])) {
+        $height = (int) $_POST['height'];
+        if ($height < 0) {
+            $height = 0;
+        }
     }
-    $mime = $imagePayload['mime'];
+    $dimensions = ['width' => $width, 'height' => $height];
+    $mime = '';
+    if (isset($_POST['mime'])) {
+        $mime = strtolower(trim((string) $_POST['mime']));
+    }
     if ($mime === '') {
-        $mime = 'image/png';
+        if (isset($file['type'])) {
+            $mime = strtolower(trim((string) $file['type']));
+        }
+    }
+    if ($mime === '') {
+        $mime = 'image/webp';
     }
     $sessionDir = session_path();
     $slug = sanitize_host($host);
@@ -310,7 +317,7 @@ function capture_handle_store(): void
     $basename = new_session_id();
     $extension = image_extension_from_mime($mime);
     if ($extension === '') {
-        $extension = 'png';
+        $extension = 'webp';
     }
     $filename = $basename . '.' . $extension;
     $filepath = $targetDir . DIRECTORY_SEPARATOR . $filename;

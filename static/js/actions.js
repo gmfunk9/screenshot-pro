@@ -1,7 +1,5 @@
 import { buildOfflineBundle } from 'app/offline';
 
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
-
 function ensureOk(response, errorMessage) {
     if (response.ok) {
         return response;
@@ -16,6 +14,19 @@ function downloadBlob(blob, filename) {
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
+}
+
+function filenameForMime(mime) {
+    if (mime === 'image/png') {
+        return 'capture.png';
+    }
+    if (mime === 'image/jpeg') {
+        return 'capture.jpg';
+    }
+    if (mime === 'image/webp') {
+        return 'capture.webp';
+    }
+    return 'capture.webp';
 }
 
 function normalizeMode(mode) {
@@ -59,11 +70,75 @@ export async function storeCapture(payload) {
     if (!payload) {
         throw new Error('Missing capture payload.');
     }
-    const body = JSON.stringify(payload);
+    const blob = payload.blob;
+    if (!blob) {
+        throw new Error('Missing capture blob payload.');
+    }
+    let pageUrl = '';
+    if (typeof payload.pageUrl === 'string') {
+        pageUrl = payload.pageUrl;
+    }
+    if (pageUrl === '') {
+        throw new Error('Missing field pageUrl; add to body.');
+    }
+    let pageTitle = 'Captured page';
+    if (typeof payload.pageTitle === 'string') {
+        if (payload.pageTitle !== '') {
+            pageTitle = payload.pageTitle;
+        }
+    }
+    let mode = 'desktop';
+    if (typeof payload.mode === 'string') {
+        if (payload.mode !== '') {
+            mode = payload.mode;
+        }
+    }
+    let host = '';
+    if (typeof payload.host === 'string') {
+        host = payload.host;
+    }
+    let width = 0;
+    let height = 0;
+    const size = payload.dimensions;
+    if (size) {
+        const rawWidth = Number(size.width);
+        if (Number.isFinite(rawWidth)) {
+            width = Math.max(0, Math.round(rawWidth));
+        }
+        const rawHeight = Number(size.height);
+        if (Number.isFinite(rawHeight)) {
+            height = Math.max(0, Math.round(rawHeight));
+        }
+    }
+    let mime = '';
+    if (typeof payload.mime === 'string') {
+        mime = payload.mime;
+    }
+    if (mime === '') {
+        if (typeof blob.type === 'string') {
+            if (blob.type !== '') {
+                mime = blob.type;
+            }
+        }
+    }
+    if (mime === '') {
+        mime = 'image/webp';
+    }
+    const form = new FormData();
+    form.append('pageUrl', pageUrl);
+    form.append('pageTitle', pageTitle);
+    form.append('mode', mode);
+    form.append('mime', mime);
+    form.append('width', String(width));
+    form.append('height', String(height));
+    if (host !== '') {
+        form.append('host', host);
+    }
+    const filename = filenameForMime(mime);
+    form.append('image', blob, filename);
     const response = await fetch('/capture/store', {
         method: 'POST',
-        headers: JSON_HEADERS,
-        body
+        body: form
     });
     ensureOk(response, 'Failed to persist capture.');
     const data = await response.json();
