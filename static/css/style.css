@@ -118,6 +118,23 @@ body {
     font-size: 0.95rem;
 }
 
+.sidebar__notice {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.sidebar__notice a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.sidebar__notice a:hover,
+.sidebar__notice a:focus {
+    text-decoration: underline;
+}
+
 .sidebar__footer {
     margin-top: auto;
     padding-top: var(--gap-md);
@@ -128,6 +145,23 @@ body {
     margin: 0;
     font-size: 0.9rem;
     color: var(--color-muted);
+    font-family: inherit;
+    white-space: pre-line;
+}
+
+.sidebar__log {
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.sidebar__log::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sidebar__log::-webkit-scrollbar-thumb {
+    background: var(--color-ghost);
+    border-radius: 999px;
 }
 
 .gallery {

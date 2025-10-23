@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Screenshot Pro — Local Mode</title>
+    <title>Screenshot Pro — Light Mode Demo</title>
     <link rel="stylesheet" href="./static/css/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
@@ -12,7 +12,8 @@
         <aside id="sidebar" class="sidebar" aria-label="Capture controls">
             <header class="sidebar__header">
                 <h1 class="sidebar__title">Screenshot Pro</h1>
-                <p class="sidebar__subtitle">Local HTML2Canvas capture (slow &amp; experimental).</p>
+                <p class="sidebar__subtitle">Light mode free demo while we build the full release.</p>
+                <p class="sidebar__notice">Email <a href="mailto:screenshotpro@funkpd.com">screenshotpro@funkpd.com</a> if this helps. Pro mode will be $10/month for faster loads, full resolution, and full-size screenshots.</p>
             </header>
             <form id="capture-form" class="stack stack--md" novalidate>
                 <label class="field">
@@ -50,8 +51,10 @@
                 </div>
                 <p class="field__help">Captures happen in your browser. Expect long waits on large pages.</p>
             </section>
-            <footer class="sidebar__footer" aria-live="polite">
-                <p id="sessionStatus" class="sidebar__status" style="white-space: pre-line;">Idle.</p>
+            <footer class="sidebar__footer">
+                <div class="sidebar__log" role="log" aria-live="polite">
+                    <pre id="sessionStatus" class="sidebar__status">Idle.</pre>
+                </div>
             </footer>
         </aside>
         <main class="gallery" aria-live="polite" aria-label="Screenshot gallery">

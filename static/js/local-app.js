@@ -11,7 +11,8 @@
     const createGallery = window.ScreenshotGallery.createGallery;
 
     const PROXY_ENDPOINT = 'https://testing2.funkpd.shop/cors.php';
-    const SITEMAP_ENDPOINT = 'https://getsitemap.funkpd.com/json';
+    const SITEMAP_ENDPOINT = './sitemap-proxy.php';
+    const SITEMAP_PAGE_LIMIT = 5;
     const FETCH_COOLDOWN_MS = 5000;
     const MAX_CAPTURE_HEIGHT = 6000;
     const PREVIEW_SCALE = 0.25;
@@ -277,9 +278,23 @@
         const res = await fetch(endpoint);
         if (!res.ok) throw new Error(`Sitemap fetch failed (${res.status})`);
         const data = await res.json();
-        const list = Array.isArray(data.sitemap) ? data.sitemap : [];
+        let list = [];
+        if (Array.isArray(data.sitemap)) {
+            list = data.sitemap;
+        }
         if (!list.length) throw new Error('Empty sitemap');
-        appendStatus(statusEl, '✓ Sitemap loaded', { count: list.length });
+        if (list.length > SITEMAP_PAGE_LIMIT) {
+            list = list.slice(0, SITEMAP_PAGE_LIMIT);
+        }
+        let upstreamCount = list.length;
+        if (typeof data.sourceCount === 'number') {
+            upstreamCount = data.sourceCount;
+        }
+        let enforcedLimit = SITEMAP_PAGE_LIMIT;
+        if (typeof data.limit === 'number') {
+            enforcedLimit = data.limit;
+        }
+        appendStatus(statusEl, '✓ Sitemap loaded', { count: list.length, source: upstreamCount, limit: enforcedLimit });
         return list;
     }
 
@@ -298,12 +313,21 @@
         const bases = parseUrlInput(raw);
         const urls = [];
         for (const base of bases) {
+            if (urls.length >= SITEMAP_PAGE_LIMIT) {
+                break;
+            }
             const entries = await fetchSitemapUrls(base, statusEl);
-            entries.forEach(entry => {
-                if (/^https?:\/\//i.test(entry)) urls.push(entry);
-            });
+            for (const entry of entries) {
+                if (!/^https?:\/\//i.test(entry)) {
+                    continue;
+                }
+                urls.push(entry);
+                if (urls.length >= SITEMAP_PAGE_LIMIT) {
+                    break;
+                }
+            }
         }
-        appendStatus(statusEl, '✓ URLs collected', { total: urls.length });
+        appendStatus(statusEl, '✓ URLs collected', { total: urls.length, max: SITEMAP_PAGE_LIMIT });
         return urls;
     }
 
@@ -338,7 +362,7 @@
         const modeInputs = document.querySelectorAll('input[name="mode"]');
         const gallery = createGallery(galleryContainer);
 
-        writeStatus(statusEl, 'Idle. Ready.');
+        writeStatus(statusEl, 'Idle. Ready. Max 5 pages per session.');
 
         newSessionBtn.onclick = () => {
             releaseBlobUrls();
