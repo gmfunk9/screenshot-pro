@@ -41,7 +41,9 @@ export function describeImage(image) {
         imageUrl: '',
         mode: normalizedMode,
         modeLabel: formatMode(normalizedMode),
-        dimensions: normalizeDimensions(image.dimensions)
+        dimensions: normalizeDimensions(image.dimensions),
+        sourceDimensions: normalizeDimensions(image.sourceDimensions),
+        mime: ''
     };
     if (typeof image.host === 'string') {
         if (image.host !== '') {
@@ -61,6 +63,11 @@ export function describeImage(image) {
     if (typeof image.imageUrl === 'string') {
         if (image.imageUrl !== '') {
             meta.imageUrl = image.imageUrl;
+        }
+    }
+    if (typeof image.mime === 'string') {
+        if (image.mime !== '') {
+            meta.mime = image.mime;
         }
     }
     if (meta.imageUrl === '') {
@@ -133,6 +140,16 @@ function buildImageCard(image) {
     media.alt = meta.pageTitle;
     applySize(media, meta.dimensions);
     media.src = meta.imageUrl;
+    if (meta.mime !== '') {
+        media.dataset.mime = meta.mime;
+    }
+    const source = meta.sourceDimensions;
+    if (source.width > 0) {
+        media.dataset.sourceWidth = String(source.width);
+    }
+    if (source.height > 0) {
+        media.dataset.sourceHeight = String(source.height);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'card__actions';
