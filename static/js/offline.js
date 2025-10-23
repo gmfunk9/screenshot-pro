@@ -1,7 +1,7 @@
 import { describeImage } from 'app/gallery';
 
 const MANIFEST_ENDPOINT = '/export/offline';
-const STYLE_PATH = '/static/css/style.min.css';
+const STYLE_PATH = '/static/css/style.css';
 const DOWNLOAD_NAME = 'screenshot-pro.html';
 
 function ensureOk(response, message) {

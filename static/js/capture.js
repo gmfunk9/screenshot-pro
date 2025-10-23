@@ -1,9 +1,12 @@
 const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1280 };
 const PROXY_ENDPOINT = '/proxy';
 const MAX_CAPTURE_HEIGHT = 1280;
-const CAPTURE_SCALE = 0.25;
-const EXPORT_MIME = 'image/webp';
-const EXPORT_QUALITY = 0.82;
+const CAPTURE_SCALE = 1;
+const DOWNSCALE_MAX_EDGE = 512;
+const TILE_HEIGHT = 512;
+const PRELOAD_REL_BLOCKLIST = new Set(['preload', 'modulepreload', 'prefetch', 'prerender']);
+const EXPORT_MIME = 'image/png';
+const EXPORT_QUALITY = 0.92;
 
 function notify(statusFn, message) {
     if (!statusFn) {
@@ -50,6 +53,100 @@ async function fetchSnapshot(url, cookie, onStatus) {
         throw new Error(`Proxy returned ${response.status} for ${url}.`);
     }
     return response.text();
+}
+
+function stripPreloadLinks(doc) {
+    const links = doc.querySelectorAll('link');
+    for (const link of links) {
+        const rel = link.getAttribute('rel');
+        if (!rel) {
+            continue;
+        }
+        const tokens = rel.split(/\s+/);
+        let shouldRemove = false;
+        for (const token of tokens) {
+            if (!token) {
+                continue;
+            }
+            const lower = token.toLowerCase();
+            if (!PRELOAD_REL_BLOCKLIST.has(lower)) {
+                continue;
+            }
+            shouldRemove = true;
+            break;
+        }
+        if (!shouldRemove) {
+            continue;
+        }
+        const parent = link.parentNode;
+        if (!parent) {
+            continue;
+        }
+        parent.removeChild(link);
+    }
+}
+
+function stripInlineEventHandlers(doc) {
+    const elements = doc.querySelectorAll('*');
+    for (const element of elements) {
+        const attributes = element.attributes;
+        if (!attributes) {
+            continue;
+        }
+        const items = Array.from(attributes);
+        const removals = [];
+        for (const attribute of items) {
+            if (!attribute) {
+                continue;
+            }
+            const name = attribute.name;
+            if (!name) {
+                continue;
+            }
+            const lower = name.toLowerCase();
+            if (!lower.startsWith('on')) {
+                continue;
+            }
+            removals.push(name);
+        }
+        for (const name of removals) {
+            element.removeAttribute(name);
+        }
+    }
+}
+
+function sanitizeHtmlPayload(html) {
+    if (typeof html !== 'string') {
+        return '';
+    }
+    if (html === '') {
+        return '';
+    }
+    let parsed;
+    try {
+        parsed = new DOMParser().parseFromString(html, 'text/html');
+    } catch (error) {
+        return fallbackSanitizeHtml(html);
+    }
+    if (!parsed) {
+        return fallbackSanitizeHtml(html);
+    }
+    removeNodes(parsed, 'script');
+    stripPreloadLinks(parsed);
+    stripInlineEventHandlers(parsed);
+    const root = parsed.documentElement;
+    if (!root) {
+        return fallbackSanitizeHtml(html);
+    }
+    return `<!DOCTYPE html>${root.outerHTML}`;
+}
+
+function fallbackSanitizeHtml(html) {
+    let sanitized = html;
+    sanitized = sanitized.replace(/<script[\s\S]*?<\/script>/gi, '');
+    sanitized = sanitized.replace(/\son[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, ' ');
+    sanitized = sanitized.replace(/<link[^>]+rel=["']?(?:preload|modulepreload|prefetch|prerender)["']?[^>]*>/gi, '');
+    return sanitized;
 }
 
 function createFrame(width) {
@@ -242,7 +339,8 @@ function injectPerformanceStyles(doc, height) {
     style.type = 'text/css';
     style.textContent = `
         *, *::before, *::after { animation: none !important; transition: none !important; }
-        * { background-attachment: scroll !important; }
+        * { background-attachment: scroll !important; background-image: none !important; box-shadow: none !important; filter: none !important; }
+        @font-face { font-display: swap !important; }
         html, body { overscroll-behavior: contain !important; }
         img { image-rendering: crisp-edges !important; max-width: 100% !important; max-height: ${height}px !important; height: auto !important; }
     `;
@@ -251,28 +349,151 @@ function injectPerformanceStyles(doc, height) {
 
 async function renderCanvas(doc, width, height) {
     const factory = ensureHtml2Canvas();
-    const baseOptions = {
+    let safeWidth = Math.round(width);
+    if (!Number.isFinite(safeWidth)) {
+        safeWidth = 1;
+    }
+    if (safeWidth <= 0) {
+        safeWidth = 1;
+    }
+    let safeHeight = Math.round(height);
+    if (!Number.isFinite(safeHeight)) {
+        safeHeight = 1;
+    }
+    if (safeHeight <= 0) {
+        safeHeight = 1;
+    }
+    const output = document.createElement('canvas');
+    output.width = safeWidth;
+    output.height = safeHeight;
+    const context = output.getContext('2d', { alpha: false });
+    if (!context) {
+        output.width = 0;
+        output.height = 0;
+        return renderCanvasFallback(factory, doc, safeWidth, safeHeight);
+    }
+    const step = Math.min(TILE_HEIGHT, safeHeight);
+    for (let offset = 0; offset < safeHeight; offset += step) {
+        let sliceHeight = step;
+        const remaining = safeHeight - offset;
+        if (remaining < step) {
+            sliceHeight = remaining;
+        }
+        const tile = await renderCanvasTile(factory, doc, safeWidth, sliceHeight, offset);
+        if (!tile) {
+            output.width = 0;
+            output.height = 0;
+            return renderCanvasFallback(factory, doc, safeWidth, safeHeight);
+        }
+        context.drawImage(tile, 0, 0, safeWidth, sliceHeight, 0, offset, safeWidth, sliceHeight);
+        tile.width = 0;
+        tile.height = 0;
+        await yieldToBrowser();
+    }
+    return output;
+}
+
+async function renderCanvasFallback(factory, doc, width, height) {
+    const options = buildCanvasOptions(width, height, 0);
+    try {
+        return await factory(doc.documentElement, {
+            ...options,
+            foreignObjectRendering: false
+        });
+    } catch (error) {
+        return factory(doc.documentElement, {
+            ...options,
+            foreignObjectRendering: true
+        });
+    }
+}
+
+async function renderCanvasTile(factory, doc, width, height, offset) {
+    const options = buildCanvasOptions(width, height, offset);
+    try {
+        return await factory(doc.documentElement, {
+            ...options,
+            foreignObjectRendering: false
+        });
+    } catch (error) {
+        return factory(doc.documentElement, {
+            ...options,
+            foreignObjectRendering: true
+        });
+    }
+}
+
+function buildCanvasOptions(width, height, offset) {
+    return {
         backgroundColor: '#ffffff',
         useCORS: true,
         allowTaint: false,
         scale: CAPTURE_SCALE,
+        width,
+        height,
+        y: offset,
+        scrollY: offset,
         windowWidth: width,
         windowHeight: height,
         imageTimeout: 1500,
         logging: false,
         removeContainer: true
     };
-    try {
-        return await factory(doc.documentElement, {
-            ...baseOptions,
-            foreignObjectRendering: false
-        });
-    } catch (error) {
-        return factory(doc.documentElement, {
-            ...baseOptions,
-            foreignObjectRendering: true
-        });
+}
+
+function downscaleCanvas(source, maxEdge) {
+    if (!source) {
+        return source;
     }
+    if (!Number.isFinite(maxEdge)) {
+        return source;
+    }
+    if (maxEdge <= 0) {
+        return source;
+    }
+    const width = source.width;
+    if (!Number.isFinite(width)) {
+        return source;
+    }
+    if (width <= 0) {
+        return source;
+    }
+    const height = source.height;
+    if (!Number.isFinite(height)) {
+        return source;
+    }
+    if (height <= 0) {
+        return source;
+    }
+    let scale = 1;
+    if (width > height) {
+        if (width > maxEdge) {
+            scale = maxEdge / width;
+        }
+    }
+    if (width <= height) {
+        if (height > maxEdge) {
+            scale = maxEdge / height;
+        }
+    }
+    if (scale === 1) {
+        return source;
+    }
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+    const output = document.createElement('canvas');
+    output.width = targetWidth;
+    output.height = targetHeight;
+    const context = output.getContext('2d', { alpha: false });
+    if (!context) {
+        return source;
+    }
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'medium';
+    context.drawImage(source, 0, 0, targetWidth, targetHeight);
+    source.width = 0;
+    source.height = 0;
+    return output;
 }
 
 function canvasToBlob(canvas) {
@@ -336,12 +557,16 @@ function deriveHost(url) {
 async function captureSingle(url, options) {
     const onStatus = options.onStatus;
     notify(onStatus, `Capturing ${url}`);
-    const html = await fetchSnapshot(url, options.cookie, onStatus);
+    const rawHtml = await fetchSnapshot(url, options.cookie, onStatus);
     await yieldToBrowser();
     const width = computeViewportWidth(options.mode);
     const frame = createFrame(width);
     try {
-        const doc = writeFrameHtml(frame, html);
+        let frameHtml = sanitizeHtmlPayload(rawHtml);
+        if (frameHtml === '') {
+            frameHtml = rawHtml;
+        }
+        const doc = writeFrameHtml(frame, frameHtml);
         await waitForLoad(frame);
         await raf();
         await raf();
@@ -358,11 +583,16 @@ async function captureSingle(url, options) {
         frame.style.maxHeight = `${height}px`;
         frame.style.overflow = 'hidden';
         await yieldToBrowser();
-        const canvas = await renderCanvas(doc, width, height);
-        const outputWidth = canvas.width;
-        const outputHeight = canvas.height;
+        const rawCanvas = await renderCanvas(doc, width, height);
         await yieldToBrowser();
-        const dataUrl = await canvasToDataUrl(canvas);
+        let workingCanvas = downscaleCanvas(rawCanvas, DOWNSCALE_MAX_EDGE);
+        if (!workingCanvas) {
+            workingCanvas = rawCanvas;
+        }
+        const outputWidth = workingCanvas.width;
+        const outputHeight = workingCanvas.height;
+        await yieldToBrowser();
+        const dataUrl = await canvasToDataUrl(workingCanvas);
         await yieldToBrowser();
         let title = 'Captured page';
         if (doc.title) {
