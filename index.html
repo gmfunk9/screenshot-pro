@@ -4,15 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Screenshot Pro — Local Mode</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="./static/css/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script type="importmap">
-        {
-            "imports": {
-                "app/gallery": "/static/js/gallery.js"
-            }
-        }
-    </script>
 </head>
 <body>
     <div class="app-shell" data-sidebar="expanded">
@@ -71,6 +64,7 @@
             <span id="sidebarToggleLabel" class="sidebar-toggle__label">Hide controls</span>
         </button>
     </div>
-    <script type="module" src="/static/js/local-app.js"></script>
+    <script src="./static/js/gallery.js"></script>
+    <script src="./static/js/local-app.js"></script>
 </body>
 </html>

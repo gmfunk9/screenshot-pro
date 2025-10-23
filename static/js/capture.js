@@ -1,3 +1,6 @@
+(function () {
+    'use strict';
+
 const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1920 };
 const PROXY_ENDPOINT = '/proxy';
 const MAX_CAPTURE_HEIGHT = 12000;
@@ -203,17 +206,33 @@ async function captureSingle(url, options) {
   }
 }
 
-export async function capturePages(options) {
-  if (!options?.urls?.length) throw new Error('No URLs for capture.');
-  const { urls, mode = 'desktop', cookie, onStatus, onCapture } = options;
+async function capturePages(options) {
+  if (!options) throw new Error('No URLs for capture.');
+  if (!Array.isArray(options.urls)) throw new Error('No URLs for capture.');
+  if (options.urls.length === 0) throw new Error('No URLs for capture.');
+
+  const mode = options.mode || 'desktop';
+  const cookie = options.cookie;
+  const onStatus = options.onStatus;
+  const onCapture = options.onCapture;
+  const total = options.urls.length;
   let index = 0;
 
-  for (const url of urls.filter(Boolean)) {
-    index++;
-    notify(onStatus, `Starting ${index}/${urls.length}`);
-    const result = await captureSingle(url.trim(), { mode, cookie, onStatus });
-    if (onCapture) await onCapture(result);
-    notify(onStatus, `Finished ${index}/${urls.length}`);
+  for (const entry of options.urls) {
+    if (!entry) continue;
+    index += 1;
+    notify(onStatus, `Starting ${index}/${total}`);
+    const trimmed = entry.trim();
+    const result = await captureSingle(trimmed, { mode, cookie, onStatus });
+    if (typeof onCapture === 'function') await onCapture(result);
+    notify(onStatus, `Finished ${index}/${total}`);
     await idle();
   }
 }
+
+  const root = window;
+  if (!root.ScreenshotCapture) {
+    root.ScreenshotCapture = {};
+  }
+  root.ScreenshotCapture.capturePages = capturePages;
+})();
