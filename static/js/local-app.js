@@ -10,7 +10,7 @@ const VIEWPORTS = {
 };
 const IMAGE_TIMEOUT_MS = 5000;
 const MAX_CAPTURE_HEIGHT = 6000;
-const PREVIEW_SCALE = 0.75;
+const PREVIEW_SCALE = 0.25;
 const EXPORT_MIME = 'image/webp';
 const EXPORT_QUALITY = 0.7;
 
@@ -333,40 +333,74 @@ function ensureHtml2Canvas() {
     throw new Error('Missing html2canvas global; check script tag.');
 }
 
+// 1) Replace renderWithFallback with a capped, pre-scaled renderer.
 async function renderWithFallback(doc, width, height, statusEl) {
     const html2canvas = ensureHtml2Canvas();
+
+    // Enforce hard caps BEFORE rendering.
+    const CAP_WIDTH = Math.min(width, 1920); // tune as needed
+    const CAP_HEIGHT = clampHeight(height);  // uses your MAX_CAPTURE_HEIGHT
+    const SCALE = Math.min(PREVIEW_SCALE, 1); // ensure <= 1 (e.g. 0.25)
+
     const baseOptions = {
         backgroundColor: '#ffffff',
         useCORS: true,
         allowTaint: false,
-        scale: 1,
-        windowWidth: width,
-        windowHeight: height,
-        logging: true
+        logging: false,
+        // Critical: render smaller from the start
+        width: CAP_WIDTH,
+        height: CAP_HEIGHT,
+        windowWidth: CAP_WIDTH,
+        windowHeight: CAP_HEIGHT,
+        scrollX: 0,
+        scrollY: 0,
+        scale: SCALE,
+        onclone: (clonedDoc) => {
+            // Hard clamp the layout to the capture box so measures don't explode.
+            const el = clonedDoc.documentElement;
+            const body = clonedDoc.body;
+            const clampCss = `
+                html, body { 
+                    width: ${CAP_WIDTH}px !important; 
+                    max-width: ${CAP_WIDTH}px !important; 
+                    height: ${CAP_HEIGHT}px !important; 
+                    max-height: ${CAP_HEIGHT}px !important; 
+                    overflow: hidden !important; 
+                }
+                * { animation: none !important; transition: none !important; }
+            `;
+            const style = clonedDoc.createElement('style');
+            style.textContent = clampCss;
+            (clonedDoc.head || el).appendChild(style);
+        }
     };
-    appendStatus(statusEl, '→ html2canvas (canvas renderer) start');
+
+    appendStatus(statusEl, '→ html2canvas (canvas renderer) start', {
+        width: CAP_WIDTH, height: CAP_HEIGHT, scale: SCALE
+    });
+
     try {
         const canvas = await html2canvas(doc.documentElement, {
             ...baseOptions,
             foreignObjectRendering: false
         });
-        appendStatus(statusEl, '✓ html2canvas (canvas) complete');
+        appendStatus(statusEl, '✓ html2canvas (canvas) complete', {
+            outW: canvas.width, outH: canvas.height
+        });
         return canvas;
     } catch (error) {
-        let message = 'Unknown error';
-        if (error) {
-            if (error.message) message = error.message;
-        }
-        appendStatus(statusEl, '⚠ html2canvas (canvas) failed', { message });
-        appendStatus(statusEl, '→ html2canvas (foreignObject) fallback start');
+        appendStatus(statusEl, '⚠ canvas mode failed; trying foreignObject', { message: error?.message || 'unknown' });
         const fallback = await html2canvas(doc.documentElement, {
             ...baseOptions,
             foreignObjectRendering: true
         });
-        appendStatus(statusEl, '✓ html2canvas (foreignObject) complete');
+        appendStatus(statusEl, '✓ html2canvas (foreignObject) complete', {
+            outW: fallback.width, outH: fallback.height
+        });
         return fallback;
     }
 }
+
 
 function downscaleCanvas(canvas, scale) {
     if (!canvas) throw new Error('Missing canvas for downscale.');
@@ -457,83 +491,60 @@ function waitForIframeLoad(frame, statusEl) {
     });
 }
 
+// 2) In capturePage, stop measuring full doc for render size.
+// Keep computePageHeight for logging, but USE a capped captureHeight for rendering.
 async function capturePage(params) {
     const { url, mode, width, statusEl, gallery, batchIndex, batchTotal, hasNext } = params;
-    const detail = { url, mode, width };
-    if (Number.isInteger(batchIndex) && Number.isInteger(batchTotal)) {
-        if (batchIndex >= 1 && batchTotal >= batchIndex) {
-            detail.batch = { index: batchIndex, total: batchTotal };
-        }
-    }
-    appendStatus(statusEl, '→ Capture requested', detail);
+    appendStatus(statusEl, '→ Capture requested', { url, mode, width });
+
     const html = await fetchSnapshot(url, statusEl);
-    appendStatus(statusEl, '→ Building iframe', { width });
     const frame = buildIframe(width);
     try {
         const doc = writeHtmlIntoFrame(frame, html);
-        appendStatus(statusEl, '✓ HTML written to iframe');
         await waitForIframeLoad(frame, statusEl);
-        await settleFrame(doc, statusEl);
-        appendStatus(statusEl, '✓ Frame content settled');
-        auditGradients(doc, statusEl);
-        const metrics = measureViewport(frame, doc, statusEl);
-        let mismatch = false;
-        if (metrics.innerWidth !== width) mismatch = true;
-        if (metrics.clientWidth !== width) mismatch = true;
-        if (mismatch) {
-            appendStatus(statusEl, '⚠ Viewport mismatch; reassert width', metrics);
-            frame.width = width;
-            frame.style.width = `${width}px`;
-            await raf();
-            await raf();
-            measureViewport(frame, doc, statusEl);
-        }
+
+        // Freeze animations + only wait for fonts. Skip image pre-decode to save RAM.
+        freezeAnimations(doc);
+        await raf(); await raf();
+        await settleFonts(doc, statusEl);
+
+        // Measure for diagnostics only.
         const rawHeight = computePageHeight(doc, statusEl);
-        const height = clampHeight(rawHeight);
-        if (height !== rawHeight) appendStatus(statusEl, '✓ Height clamped', { rawHeight, height });
-        frame.height = height;
-        frame.style.height = `${height}px`;
-        frame.style.maxHeight = `${height}px`;
-        frame.style.overflow = 'hidden';
-        const canvas = await renderWithFallback(doc, width, height, statusEl);
-        let capturedWidth = canvas.width;
-        if (!Number.isFinite(capturedWidth)) capturedWidth = width;
-        let capturedHeight = canvas.height;
-        if (!Number.isFinite(capturedHeight)) capturedHeight = height;
-        let previewCanvas = downscaleCanvas(canvas, PREVIEW_SCALE);
-        if (!previewCanvas) previewCanvas = canvas;
-        const previewWidth = previewCanvas.width;
-        const previewHeight = previewCanvas.height;
-        const blob = await exportCanvasBlob(previewCanvas);
-        const mime = blob.type !== '' ? blob.type : EXPORT_MIME;
+
+        // Use a capped height for the actual render.
+        const captureHeight = clampHeight(rawHeight);
+
+        // Render pre-scaled and pre-capped.
+        const canvas = await renderWithFallback(doc, width, captureHeight, statusEl);
+
+        // Export and release ASAP.
+        const blob = await exportCanvasBlob(canvas);
         const blobUrl = createBlobUrl(blob);
         rememberBlobUrl(blobUrl);
-        previewCanvas.width = 0;
-        previewCanvas.height = 0;
-        if (previewCanvas !== canvas) {
-            canvas.width = 0;
-            canvas.height = 0;
-        }
-        let title = doc.title;
-        if (!title) title = 'Captured page';
+
         const image = {
             host: deriveHost(url),
             mode,
             pageUrl: url,
-            pageTitle: title,
+            pageTitle: doc.title || 'Captured page',
             imageUrl: blobUrl,
             blob,
-            dimensions: { width: previewWidth, height: previewHeight },
-            sourceDimensions: { width: capturedWidth, height: capturedHeight },
-            mime
+            dimensions: { width: canvas.width, height: canvas.height },
+            sourceDimensions: { width: canvas.width, height: canvas.height },
+            mime: blob.type || EXPORT_MIME
         };
         gallery.append(image);
-        appendStatus(statusEl, `✓ Done (${previewWidth} × ${previewHeight})`, {
+
+        // Immediate release
+        canvas.width = 0; canvas.height = 0;
+
+        appendStatus(statusEl, '✓ Done', {
             pageUrl: url,
-            sourceWidth: capturedWidth,
-            sourceHeight: capturedHeight,
-            mime
+            outW: image.dimensions.width,
+            outH: image.dimensions.height,
+            mime: image.mime
         });
+
         if (hasNext) {
             scheduleFetchCooldown(statusEl);
         } else {
@@ -543,6 +554,7 @@ async function capturePage(params) {
         removeIframe(frame);
     }
 }
+
 
 function initSidebar(appShell, sidebar, toggleBtn, labelEl, iconEl) {
     function applyState(state) {

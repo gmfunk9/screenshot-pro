@@ -159,10 +159,10 @@ async function renderWithFallback(doc, width, height){
     backgroundColor:"#fff",
     useCORS:true,
     allowTaint:false,
-    scale:1,
+    scale:.5,
     windowWidth:width,
-    windowHeight:height,
-    logging:true
+    windowHeight:height*.25,
+    logging:false
   };
   try{
     log("→ html2canvas (canvas renderer) start");
