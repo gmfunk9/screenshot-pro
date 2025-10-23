@@ -42,6 +42,7 @@ export function describeImage(image) {
         mode: normalizedMode,
         modeLabel: formatMode(normalizedMode),
         dimensions: normalizeDimensions(image.dimensions),
+        sourceDimensions: normalizeDimensions(image.sourceDimensions),
         mime: ''
     };
     if (typeof image.host === 'string') {
@@ -141,6 +142,13 @@ function buildImageCard(image) {
     media.src = meta.imageUrl;
     if (meta.mime !== '') {
         media.dataset.mime = meta.mime;
+    }
+    const source = meta.sourceDimensions;
+    if (source.width > 0) {
+        media.dataset.sourceWidth = String(source.width);
+    }
+    if (source.height > 0) {
+        media.dataset.sourceHeight = String(source.height);
     }
 
     const actions = document.createElement('div');

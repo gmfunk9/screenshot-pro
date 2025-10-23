@@ -10,6 +10,11 @@ const VIEWPORTS = {
 };
 const IMAGE_TIMEOUT_MS = 5000;
 const MAX_CAPTURE_HEIGHT = 6000;
+const PREVIEW_SCALE = 0.75;
+const EXPORT_MIME = 'image/webp';
+const EXPORT_QUALITY = 0.7;
+
+const blobUrls = new Set();
 
 let nextFetchReadyAt = 0;
 
@@ -363,25 +368,69 @@ async function renderWithFallback(doc, width, height, statusEl) {
     }
 }
 
-function encodeCanvasDataUrl(canvas) {
-    if (!canvas) throw new Error('Missing canvas for encoding.');
-    if (typeof canvas.toDataURL !== 'function') throw new Error('Canvas toDataURL missing; cannot encode.');
-    let url = '';
-    try {
-        url = canvas.toDataURL('image/webp', 0.7);
-    } catch (error) {
-        url = '';
-    }
-    if (url) return url;
-    return canvas.toDataURL('image/png');
+function downscaleCanvas(canvas, scale) {
+    if (!canvas) throw new Error('Missing canvas for downscale.');
+    if (!Number.isFinite(scale)) return canvas;
+    if (scale <= 0) return canvas;
+    if (scale >= 1) return canvas;
+    const width = canvas.width;
+    if (!Number.isFinite(width)) return canvas;
+    if (width <= 0) return canvas;
+    const height = canvas.height;
+    if (!Number.isFinite(height)) return canvas;
+    if (height <= 0) return canvas;
+    const target = document.createElement('canvas');
+    target.width = Math.max(1, Math.round(width * scale));
+    target.height = Math.max(1, Math.round(height * scale));
+    const context = target.getContext('2d', { alpha: false });
+    if (!context) return canvas;
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(canvas, 0, 0, target.width, target.height);
+    canvas.width = 0;
+    canvas.height = 0;
+    return target;
 }
 
-function detectDataUrlMime(dataUrl) {
-    if (typeof dataUrl !== 'string') return '';
-    if (dataUrl.startsWith('data:image/webp')) return 'image/webp';
-    if (dataUrl.startsWith('data:image/png')) return 'image/png';
-    if (dataUrl.startsWith('data:image/jpeg')) return 'image/jpeg';
-    return '';
+async function exportCanvasBlob(canvas) {
+    if (!canvas) throw new Error('Missing canvas for export.');
+    if (typeof canvas.convertToBlob === 'function') {
+        try {
+            const blob = await canvas.convertToBlob({ type: EXPORT_MIME, quality: EXPORT_QUALITY });
+            if (blob) return blob;
+        } catch (error) {
+            // ignore and fall back
+        }
+    }
+    if (typeof canvas.toBlob !== 'function') throw new Error('Canvas toBlob missing; cannot export.');
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('Canvas toBlob produced no blob.'));
+                return;
+            }
+            resolve(blob);
+        }, EXPORT_MIME, EXPORT_QUALITY);
+    });
+}
+
+function createBlobUrl(blob) {
+    const url = URL.createObjectURL(blob);
+    if (!url) throw new Error('Failed to create blob URL.');
+    return url;
+}
+
+function rememberBlobUrl(url) {
+    if (!url) return;
+    blobUrls.add(url);
+}
+
+function releaseBlobUrls() {
+    for (const url of blobUrls) {
+        if (!url) continue;
+        URL.revokeObjectURL(url);
+    }
+    blobUrls.clear();
 }
 
 function scheduleFetchCooldown(statusEl) {
@@ -447,8 +496,24 @@ async function capturePage(params) {
         frame.style.maxHeight = `${height}px`;
         frame.style.overflow = 'hidden';
         const canvas = await renderWithFallback(doc, width, height, statusEl);
-        const dataUrl = encodeCanvasDataUrl(canvas);
-        const mime = detectDataUrlMime(dataUrl);
+        let capturedWidth = canvas.width;
+        if (!Number.isFinite(capturedWidth)) capturedWidth = width;
+        let capturedHeight = canvas.height;
+        if (!Number.isFinite(capturedHeight)) capturedHeight = height;
+        let previewCanvas = downscaleCanvas(canvas, PREVIEW_SCALE);
+        if (!previewCanvas) previewCanvas = canvas;
+        const previewWidth = previewCanvas.width;
+        const previewHeight = previewCanvas.height;
+        const blob = await exportCanvasBlob(previewCanvas);
+        const mime = blob.type !== '' ? blob.type : EXPORT_MIME;
+        const blobUrl = createBlobUrl(blob);
+        rememberBlobUrl(blobUrl);
+        previewCanvas.width = 0;
+        previewCanvas.height = 0;
+        if (previewCanvas !== canvas) {
+            canvas.width = 0;
+            canvas.height = 0;
+        }
         let title = doc.title;
         if (!title) title = 'Captured page';
         const image = {
@@ -456,12 +521,19 @@ async function capturePage(params) {
             mode,
             pageUrl: url,
             pageTitle: title,
-            imageUrl: dataUrl,
-            dimensions: { width, height },
+            imageUrl: blobUrl,
+            blob,
+            dimensions: { width: previewWidth, height: previewHeight },
+            sourceDimensions: { width: capturedWidth, height: capturedHeight },
             mime
         };
         gallery.append(image);
-        appendStatus(statusEl, `✓ Done (${width} × ${height})`, { pageUrl: url });
+        appendStatus(statusEl, `✓ Done (${previewWidth} × ${previewHeight})`, {
+            pageUrl: url,
+            sourceWidth: capturedWidth,
+            sourceHeight: capturedHeight,
+            mime
+        });
         if (hasNext) {
             scheduleFetchCooldown(statusEl);
         } else {
@@ -655,11 +727,13 @@ function init() {
     initSidebar(appShell, sidebar, sidebarToggleBtn, sidebarToggleLabel, sidebarToggleIcon);
 
     newSessionBtn.addEventListener('click', () => {
+        releaseBlobUrls();
         gallery.clear();
         writeStatus(statusEl, 'Session reset.');
     });
 
     clearGalleryBtn.addEventListener('click', () => {
+        releaseBlobUrls();
         gallery.clear();
         writeStatus(statusEl, 'Gallery cleared.');
     });
@@ -669,6 +743,10 @@ function init() {
         await handleCapture(form, urlInput, modeInputs, statusEl, gallery);
     });
 }
+
+window.addEventListener('beforeunload', () => {
+    releaseBlobUrls();
+});
 
 function patchAddColorStop() {
     try {

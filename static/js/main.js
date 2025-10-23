@@ -124,7 +124,8 @@ function buildCapturePayload(result) {
         mode: result.meta.mode,
         blob: result.blob,
         mime: result.meta.mime,
-        dimensions: result.meta.dimensions
+        dimensions: result.meta.dimensions,
+        sourceDimensions: result.meta.sourceDimensions
     };
 }
 

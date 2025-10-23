@@ -65,6 +65,12 @@ function capture_session_state(): array
                 $dimensions = $meta['dimensions'];
             }
         }
+        $sourceDimensions = ['width' => 0, 'height' => 0];
+        if (isset($meta['sourceDimensions'])) {
+            if (is_array($meta['sourceDimensions'])) {
+                $sourceDimensions = $meta['sourceDimensions'];
+            }
+        }
         $mime = '';
         if (isset($meta['mime'])) {
             if (is_string($meta['mime'])) {
@@ -78,6 +84,7 @@ function capture_session_state(): array
             'pageTitle' => $pageTitle,
             'mode' => $mode,
             'dimensions' => $dimensions,
+            'sourceDimensions' => $sourceDimensions,
             'mime' => $mime
         ];
     }
@@ -295,6 +302,21 @@ function capture_handle_store(): void
         }
     }
     $dimensions = ['width' => $width, 'height' => $height];
+    $sourceWidth = 0;
+    if (isset($_POST['sourceWidth'])) {
+        $sourceWidth = (int) $_POST['sourceWidth'];
+        if ($sourceWidth < 0) {
+            $sourceWidth = 0;
+        }
+    }
+    $sourceHeight = 0;
+    if (isset($_POST['sourceHeight'])) {
+        $sourceHeight = (int) $_POST['sourceHeight'];
+        if ($sourceHeight < 0) {
+            $sourceHeight = 0;
+        }
+    }
+    $sourceDimensions = ['width' => $sourceWidth, 'height' => $sourceHeight];
     $mime = '';
     if (isset($_POST['mime'])) {
         $mime = strtolower(trim((string) $_POST['mime']));
@@ -332,6 +354,7 @@ function capture_handle_store(): void
         'pageTitle' => $title,
         'mode' => $mode,
         'dimensions' => $dimensions,
+        'sourceDimensions' => $sourceDimensions,
         'mime' => $mime
     ];
     $metaSaved = write_metadata($metaPath, $meta);
@@ -352,6 +375,7 @@ function capture_handle_store(): void
         'pageTitle' => $title,
         'imageUrl' => $relative,
         'dimensions' => $dimensions,
+        'sourceDimensions' => $sourceDimensions,
         'mime' => $mime
     ];
     respond_json(201, ['image' => $response]);

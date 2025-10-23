@@ -134,6 +134,25 @@ export async function storeCapture(payload) {
     if (host !== '') {
         form.append('host', host);
     }
+    let sourceWidth = 0;
+    let sourceHeight = 0;
+    const original = payload.sourceDimensions;
+    if (original) {
+        const rawSourceWidth = Number(original.width);
+        if (Number.isFinite(rawSourceWidth)) {
+            sourceWidth = Math.max(0, Math.round(rawSourceWidth));
+        }
+        const rawSourceHeight = Number(original.height);
+        if (Number.isFinite(rawSourceHeight)) {
+            sourceHeight = Math.max(0, Math.round(rawSourceHeight));
+        }
+    }
+    if (sourceWidth > 0) {
+        form.append('sourceWidth', String(sourceWidth));
+    }
+    if (sourceHeight > 0) {
+        form.append('sourceHeight', String(sourceHeight));
+    }
     const filename = filenameForMime(mime);
     form.append('image', blob, filename);
     const response = await fetch('/capture/store', {

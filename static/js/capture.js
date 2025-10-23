@@ -2,7 +2,7 @@ const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1280 };
 const PROXY_ENDPOINT = '/proxy';
 const MAX_CAPTURE_HEIGHT = 6000;
 const CAPTURE_SCALE = 1;
-const DOWNSCALE_MAX_EDGE = 512;
+const OUTPUT_SCALE = 0.75;
 const TILE_HEIGHT = 512;
 const PRELOAD_REL_BLOCKLIST = new Set(['preload', 'modulepreload', 'prefetch', 'prerender']);
 const EXPORT_MIME = 'image/webp';
@@ -526,14 +526,17 @@ function buildCanvasOptions(width, height, offset) {
     };
 }
 
-function downscaleCanvas(source, maxEdge) {
+function downscaleCanvas(source, scale) {
     if (!source) {
         return source;
     }
-    if (!Number.isFinite(maxEdge)) {
+    if (!Number.isFinite(scale)) {
         return source;
     }
-    if (maxEdge <= 0) {
+    if (scale <= 0) {
+        return source;
+    }
+    if (scale >= 1) {
         return source;
     }
     const width = source.width;
@@ -550,20 +553,6 @@ function downscaleCanvas(source, maxEdge) {
     if (height <= 0) {
         return source;
     }
-    let scale = 1;
-    if (width > height) {
-        if (width > maxEdge) {
-            scale = maxEdge / width;
-        }
-    }
-    if (width <= height) {
-        if (height > maxEdge) {
-            scale = maxEdge / height;
-        }
-    }
-    if (scale === 1) {
-        return source;
-    }
     const targetWidth = Math.max(1, Math.round(width * scale));
     const targetHeight = Math.max(1, Math.round(height * scale));
     const output = document.createElement('canvas');
@@ -574,7 +563,7 @@ function downscaleCanvas(source, maxEdge) {
         return source;
     }
     context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = 'medium';
+    context.imageSmoothingQuality = 'high';
     context.drawImage(source, 0, 0, targetWidth, targetHeight);
     source.width = 0;
     source.height = 0;
@@ -662,7 +651,15 @@ async function captureSingle(url, options) {
         await idle();
         const rawCanvas = await renderCanvas(doc, width, height);
         await idle();
-        let workingCanvas = downscaleCanvas(rawCanvas, DOWNSCALE_MAX_EDGE);
+        let capturedWidth = rawCanvas.width;
+        if (!Number.isFinite(capturedWidth)) {
+            capturedWidth = width;
+        }
+        let capturedHeight = rawCanvas.height;
+        if (!Number.isFinite(capturedHeight)) {
+            capturedHeight = height;
+        }
+        let workingCanvas = downscaleCanvas(rawCanvas, OUTPUT_SCALE);
         if (!workingCanvas) {
             workingCanvas = rawCanvas;
         }
@@ -694,7 +691,8 @@ async function captureSingle(url, options) {
                 pageTitle: title,
                 mode,
                 mime,
-                dimensions: { width: outputWidth, height: outputHeight }
+                dimensions: { width: outputWidth, height: outputHeight },
+                sourceDimensions: { width: capturedWidth, height: capturedHeight }
             }
         };
     } finally {
