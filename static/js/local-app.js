@@ -357,18 +357,11 @@
         const urlInput = selectById('urlInput');
         const statusEl = selectById('sessionStatus');
         const galleryContainer = selectById('result');
-        const newSessionBtn = selectById('newSessionBtn');
         const clearGalleryBtn = selectById('clearGalleryBtn');
         const modeInputs = document.querySelectorAll('input[name="mode"]');
         const gallery = createGallery(galleryContainer);
 
         writeStatus(statusEl, 'Idle. Ready. Max 5 pages per session.');
-
-        newSessionBtn.onclick = () => {
-            releaseBlobUrls();
-            gallery.clear();
-            writeStatus(statusEl, 'Session reset.');
-        };
 
         clearGalleryBtn.onclick = () => {
             releaseBlobUrls();

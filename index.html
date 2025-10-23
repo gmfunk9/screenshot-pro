@@ -13,16 +13,12 @@
             <header class="sidebar__header">
                 <h1 class="sidebar__title">Screenshot Pro</h1>
                 <p class="sidebar__subtitle">Light mode free demo while we build the full release.</p>
-                <p class="sidebar__notice">Email <a href="mailto:screenshotpro@funkpd.com">screenshotpro@funkpd.com</a> if this helps. Pro mode will be $10/month for faster loads, full resolution, and full-size screenshots.</p>
+                <p class="sidebar__notice">Email <a href="mailto:screenshotpro@funkpd.com">screenshotpro@funkpd.com</a> if this helps. Pro mode will be $10/month for faster loads, full resolution, and full-size screenshots, cookie login support & more.</p>
             </header>
             <form id="capture-form" class="stack stack--md" novalidate>
                 <label class="field">
                     <span class="field__label">Page URL</span>
                     <input type="url" id="urlInput" name="url" placeholder="https://example.com" required>
-                </label>
-                <label class="field">
-                    <span class="field__label">Cookie header</span>
-                    <input type="text" id="cookieInput" name="cookie" placeholder="Optional; sent via proxy" disabled>
                 </label>
                 <fieldset class="fieldset">
                     <legend class="field__label">Viewport mode</legend>
@@ -41,12 +37,10 @@
                         </label>
                     </div>
                 </fieldset>
-                <p class="field__help">Proxy: https://testing2.funkpd.shop/cors.php — long timeout to avoid repeat load.</p>
                 <button type="submit" class="button button--primary">Capture page locally</button>
             </form>
             <section class="stack stack--lg" aria-label="Session controls">
                 <div class="cluster">
-                    <button id="newSessionBtn" type="button" class="button">New session</button>
                     <button id="clearGalleryBtn" type="button" class="button">Clear gallery</button>
                 </div>
                 <p class="field__help">Captures happen in your browser. Expect long waits on large pages.</p>

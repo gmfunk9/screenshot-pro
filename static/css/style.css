@@ -33,7 +33,6 @@ body {
     justify-content: stretch;
 }
 
-
 .app-shell {
     position: relative;
     width: 100%;
@@ -275,6 +274,8 @@ body {
 }
 
 .card__actions {
+    position: sticky;
+    bottom: 0;
     display: flex;
     gap: var(--gap-sm);
     padding: var(--gap-sm);
@@ -345,8 +346,10 @@ body {
 
 .fieldset {
     margin: 0;
-    padding: 0;
     border: none;
+    padding: 5px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: var(--radius-md);
 }
 
 .segmented {

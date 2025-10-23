@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 const TARGET_ENDPOINT = 'https://getsitemap.funkpd.com/json';
-const PAGE_LIMIT = 5;
+const PAGE_LIMIT = 10;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
