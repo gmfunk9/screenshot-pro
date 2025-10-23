@@ -9,6 +9,7 @@ const VIEWPORTS = {
     desktop: 1920
 };
 const IMAGE_TIMEOUT_MS = 5000;
+const MAX_CAPTURE_HEIGHT = 6000;
 
 let nextFetchReadyAt = 0;
 
@@ -315,6 +316,13 @@ function computePageHeight(doc, statusEl) {
     return height;
 }
 
+function clampHeight(value) {
+    if (!Number.isFinite(value)) return MAX_CAPTURE_HEIGHT;
+    if (value <= 0) return MAX_CAPTURE_HEIGHT;
+    if (value > MAX_CAPTURE_HEIGHT) return MAX_CAPTURE_HEIGHT;
+    return value;
+}
+
 function ensureHtml2Canvas() {
     if (typeof window.html2canvas === 'function') return window.html2canvas;
     throw new Error('Missing html2canvas global; check script tag.');
@@ -353,6 +361,27 @@ async function renderWithFallback(doc, width, height, statusEl) {
         appendStatus(statusEl, '✓ html2canvas (foreignObject) complete');
         return fallback;
     }
+}
+
+function encodeCanvasDataUrl(canvas) {
+    if (!canvas) throw new Error('Missing canvas for encoding.');
+    if (typeof canvas.toDataURL !== 'function') throw new Error('Canvas toDataURL missing; cannot encode.');
+    let url = '';
+    try {
+        url = canvas.toDataURL('image/webp', 0.7);
+    } catch (error) {
+        url = '';
+    }
+    if (url) return url;
+    return canvas.toDataURL('image/png');
+}
+
+function detectDataUrlMime(dataUrl) {
+    if (typeof dataUrl !== 'string') return '';
+    if (dataUrl.startsWith('data:image/webp')) return 'image/webp';
+    if (dataUrl.startsWith('data:image/png')) return 'image/png';
+    if (dataUrl.startsWith('data:image/jpeg')) return 'image/jpeg';
+    return '';
 }
 
 function scheduleFetchCooldown(statusEl) {
@@ -410,11 +439,16 @@ async function capturePage(params) {
             await raf();
             measureViewport(frame, doc, statusEl);
         }
-        const height = computePageHeight(doc, statusEl);
+        const rawHeight = computePageHeight(doc, statusEl);
+        const height = clampHeight(rawHeight);
+        if (height !== rawHeight) appendStatus(statusEl, '✓ Height clamped', { rawHeight, height });
         frame.height = height;
         frame.style.height = `${height}px`;
+        frame.style.maxHeight = `${height}px`;
+        frame.style.overflow = 'hidden';
         const canvas = await renderWithFallback(doc, width, height, statusEl);
-        const dataUrl = canvas.toDataURL('image/png');
+        const dataUrl = encodeCanvasDataUrl(canvas);
+        const mime = detectDataUrlMime(dataUrl);
         let title = doc.title;
         if (!title) title = 'Captured page';
         const image = {
@@ -423,7 +457,8 @@ async function capturePage(params) {
             pageUrl: url,
             pageTitle: title,
             imageUrl: dataUrl,
-            dimensions: { width, height }
+            dimensions: { width, height },
+            mime
         };
         gallery.append(image);
         appendStatus(statusEl, `✓ Done (${width} × ${height})`, { pageUrl: url });

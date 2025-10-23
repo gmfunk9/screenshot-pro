@@ -1,6 +1,6 @@
 const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1280 };
 const PROXY_ENDPOINT = '/proxy';
-const MAX_CAPTURE_HEIGHT = 2048;
+const MAX_CAPTURE_HEIGHT = 6000;
 const CAPTURE_SCALE = 1;
 const DOWNSCALE_MAX_EDGE = 512;
 const TILE_HEIGHT = 512;
