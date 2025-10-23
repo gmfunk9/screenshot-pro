@@ -3,794 +3,267 @@ import { createGallery } from 'app/gallery';
 const PROXY_ENDPOINT = 'https://testing2.funkpd.shop/cors.php';
 const SITEMAP_ENDPOINT = 'https://getsitemap.funkpd.com/json';
 const FETCH_COOLDOWN_MS = 5000;
-const VIEWPORTS = {
-    mobile: 390,
-    tablet: 834,
-    desktop: 1920
-};
 const IMAGE_TIMEOUT_MS = 5000;
 const MAX_CAPTURE_HEIGHT = 6000;
 const PREVIEW_SCALE = 0.25;
 const EXPORT_MIME = 'image/webp';
 const EXPORT_QUALITY = 0.7;
 
+const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1920 };
 const blobUrls = new Set();
-
 let nextFetchReadyAt = 0;
 
-function selectById(id) {
-    const element = document.getElementById(id);
-    if (element) return element;
-    throw new Error(`Missing element #${id}; fix template.`);
-}
+const selectById = id => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`#${id} missing`);
+  return el;
+};
 
-function writeStatus(target, message) {
-    if (!target) return;
-    target.textContent = message;
-    target.scrollTop = target.scrollHeight;
-}
+const writeStatus = (target, msg) => {
+  if (!target) return;
+  target.textContent = msg;
+  target.scrollTop = target.scrollHeight;
+};
 
-function appendStatus(target, message, detail) {
-    if (!target) return;
-    const stamp = new Date().toISOString();
-    let line = `[${stamp}] ${message}`;
-    const hasDetail = typeof detail !== 'undefined';
-    if (hasDetail) {
-        let payload;
-        try {
-            payload = JSON.stringify(detail);
-        } catch (error) {
-            payload = '"[unserializable]"';
-        }
-        line = `${line} ${payload}`;
-        console.log(line, detail);
-    } else {
-        console.log(line);
-    }
-    const existing = target.textContent;
-    if (!existing) {
-        target.textContent = line;
-        target.scrollTop = target.scrollHeight;
-        return;
-    }
-    target.textContent = `${existing}\n${line}`;
-    target.scrollTop = target.scrollHeight;
-}
+const appendStatus = (target, msg, data) => {
+  if (!target) return;
+  const stamp = new Date().toISOString();
+  const line = `[${stamp}] ${msg}`;
+  console.log(line, data || '');
+  target.textContent += `\n${line}`;
+  target.scrollTop = target.scrollHeight;
+};
 
-function deriveHost(url) {
-    if (!url) return '';
-    try {
-        const parsed = new URL(url);
-        return parsed.hostname;
-    } catch (error) {
-        return '';
-    }
-}
+const deriveHost = url => (url ? new URL(url).hostname : '');
+const resolveViewportWidth = mode => VIEWPORTS[mode] || VIEWPORTS.desktop;
 
-function resolveViewportWidth(mode) {
-    if (!mode) return VIEWPORTS.desktop;
-    const lower = mode.toLowerCase();
-    if (lower === 'mobile') return VIEWPORTS.mobile;
-    if (lower === 'tablet') return VIEWPORTS.tablet;
-    if (lower === 'desktop') return VIEWPORTS.desktop;
-    return VIEWPORTS.desktop;
-}
+const disableForm = (form, disabled) => {
+  Array.from(form.elements || []).forEach(c => (c.disabled = disabled));
+};
 
-function readMode(radios) {
-    if (!radios) return 'desktop';
-    const list = Array.from(radios);
-    for (const item of list) {
-        if (!item) continue;
-        if (!item.checked) continue;
-        if (!item.value) return 'desktop';
-        return item.value;
-    }
-    return 'desktop';
-}
-
-function disableForm(form, disabled) {
-    if (!form) return;
-    let controls = [];
-    if (form.elements) controls = Array.from(form.elements);
-    for (const control of controls) {
-        if (!control) continue;
-        control.disabled = disabled;
-    }
-}
-
-function createProxyUrl(url) {
-    const encoded = encodeURIComponent(url);
-    return `${PROXY_ENDPOINT}?url=${encoded}`;
-}
+const createProxyUrl = url => `${PROXY_ENDPOINT}?url=${encodeURIComponent(url)}`;
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const raf = () => new Promise(r => requestAnimationFrame(r));
 
 async function waitForNextFetchSlot(statusEl) {
-    const now = Date.now();
-    if (now >= nextFetchReadyAt) return;
+  const now = Date.now();
+  if (now < nextFetchReadyAt) {
     const waitMs = nextFetchReadyAt - now;
-    appendStatus(statusEl, `→ Waiting ${waitMs}ms before proxy fetch`);
-    await new Promise((resolve) => {
-        window.setTimeout(resolve, waitMs);
-    });
+    appendStatus(statusEl, `→ Waiting ${waitMs}ms`);
+    await wait(waitMs);
+  }
 }
 
 async function fetchSnapshot(url, statusEl) {
-    await waitForNextFetchSlot(statusEl);
-    const proxyUrl = createProxyUrl(url);
-    appendStatus(statusEl, '→ Fetching snapshot', { proxyUrl });
-    const startedAt = performance.now();
-    const response = await fetch(proxyUrl);
-    const elapsedMs = (performance.now() - startedAt).toFixed(1);
-    appendStatus(statusEl, `✓ Fetch ${response.status} in ${elapsedMs} ms`);
-    if (!response.ok) {
-        appendStatus(statusEl, '❌ Proxy fetch failed', { status: response.status });
-        throw new Error(`Proxy fetch failed; status ${response.status}.`);
-    }
-    const html = await response.text();
-    appendStatus(statusEl, '✓ HTML bytes', { length: html.length });
-    return html;
+  await waitForNextFetchSlot(statusEl);
+  const proxyUrl = createProxyUrl(url);
+  appendStatus(statusEl, '→ Fetching snapshot', { proxyUrl });
+  const res = await fetch(proxyUrl);
+  if (!res.ok) throw new Error(`Proxy fetch failed (${res.status})`);
+  const html = await res.text();
+  appendStatus(statusEl, '✓ HTML bytes', { length: html.length });
+  return html;
 }
 
 function buildIframe(width) {
-    const frame = document.createElement('iframe');
-    frame.width = width;
-    frame.height = 100;
-    frame.style.width = `${width}px`;
-    frame.style.height = '100px';
-    frame.style.visibility = 'hidden';
-    frame.style.display = 'block';
-    frame.style.border = '0';
-    frame.style.position = 'absolute';
-    frame.style.left = '-10000px';
-    frame.style.top = '0';
-    frame.style.pointerEvents = 'none';
-    document.body.appendChild(frame);
-    return frame;
+  const frame = document.createElement('iframe');
+  Object.assign(frame.style, {
+    width: `${width}px`,
+    height: '100px',
+    visibility: 'hidden',
+    display: 'block',
+    border: '0',
+    position: 'absolute',
+    left: '-10000px',
+    top: '0',
+    pointerEvents: 'none'
+  });
+  document.body.appendChild(frame);
+  return frame;
 }
 
-function removeIframe(frame) {
-    if (!frame) return;
-    const parent = frame.parentNode;
-    if (!parent) return;
-    parent.removeChild(frame);
-}
+const removeIframe = frame => frame?.parentNode?.removeChild(frame);
 
-function writeHtmlIntoFrame(frame, html) {
-    let doc = frame.contentDocument;
-    if (!doc) {
-        const win = frame.contentWindow;
-        if (win) doc = win.document;
-    }
-    if (!doc) throw new Error('Iframe document missing; browser blocked frame.');
-    doc.open();
-    doc.write(html);
-    doc.close();
-    return doc;
-}
+const writeHtmlIntoFrame = (frame, html) => {
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  return doc;
+};
 
-function raf() {
-    return new Promise((resolve) => {
-        window.requestAnimationFrame(resolve);
-    });
-}
-
-function freezeAnimations(doc) {
-    const style = doc.createElement('style');
-    style.textContent = `*,*::before,*::after{animation:none!important;transition:none!important}`;
-    let target = doc.head;
-    if (!target) target = doc.documentElement;
-    if (!target) return;
-    target.appendChild(style);
-}
+const freezeAnimations = doc => {
+  const style = doc.createElement('style');
+  style.textContent = `*,*::before,*::after{animation:none!important;transition:none!important}`;
+  (doc.head || doc.documentElement).appendChild(style);
+};
 
 async function settleFonts(doc, statusEl) {
-    const fonts = doc.fonts;
-    if (!fonts) return;
-    const ready = fonts.ready;
-    if (!ready) return;
-    try {
-        await ready;
-        appendStatus(statusEl, '✓ Fonts ready');
-    } catch (error) {
-        appendStatus(statusEl, '⚠ fonts.ready error');
-    }
+  if (doc.fonts?.ready) await doc.fonts.ready;
+  appendStatus(statusEl, '✓ Fonts ready');
 }
 
-function settleSingleImage(image, index, statusEl) {
-    return new Promise((resolve) => {
-        if (!image) {
-            resolve();
-            return;
-        }
-        let src = image.currentSrc;
-        if (!src) src = image.src;
-        if (!src) src = '(no src)';
-        const startedAt = performance.now();
-        let settled = false;
-        let timer = null;
-        function finishSuccess(tag) {
-            if (settled) return;
-            settled = true;
-            if (timer) window.clearTimeout(timer);
-            const elapsed = performance.now() - startedAt;
-            appendStatus(statusEl, `✓ img#${index} ${tag}`, { src, ms: elapsed.toFixed(1) });
-            resolve();
-        }
-        function finishFailure(tag) {
-            if (settled) return;
-            settled = true;
-            if (timer) window.clearTimeout(timer);
-            appendStatus(statusEl, `⚠ img#${index} ${tag}`, { src });
-            resolve();
-        }
-        if (image.complete) {
-            const hasSize = image.naturalWidth > 0;
-            if (hasSize) {
-                finishSuccess('complete');
-                return;
-            }
-        }
-        timer = window.setTimeout(() => {
-            finishFailure('timeout');
-        }, IMAGE_TIMEOUT_MS);
-        const canDecode = typeof image.decode === 'function';
-        if (canDecode) {
-            image.decode().then(() => {
-                finishSuccess('decoded');
-            }).catch(() => {
-                finishFailure('decode error');
-            });
-            return;
-        }
-        image.addEventListener('load', () => {
-            finishSuccess('load');
-        }, { once: true });
-        image.addEventListener('error', () => {
-            finishFailure('error');
-        }, { once: true });
-    });
+function computePageHeight(doc) {
+  const root = doc.documentElement;
+  const body = doc.body;
+  return Math.max(
+    root.scrollHeight,
+    root.offsetHeight,
+    body?.scrollHeight || 0,
+    MAX_CAPTURE_HEIGHT
+  );
 }
 
-async function settleImages(doc, statusEl) {
-    let images = [];
-    if (doc.images) images = Array.from(doc.images);
-    appendStatus(statusEl, `→ Decoding ${images.length} images (5s timeout each)`);
-    const tasks = images.map((image, index) => settleSingleImage(image, index, statusEl));
-    await Promise.all(tasks);
-    appendStatus(statusEl, '✓ Image settle complete');
-}
+const clampHeight = h => Math.min(h || MAX_CAPTURE_HEIGHT, MAX_CAPTURE_HEIGHT);
 
-async function settleFrame(doc, statusEl) {
-    freezeAnimations(doc);
-    await raf();
-    await raf();
-    await settleFonts(doc, statusEl);
-    await settleImages(doc, statusEl);
-}
+const ensureHtml2Canvas = () => window.html2canvas;
 
-function auditGradients(doc, statusEl) {
-    const nodes = doc.querySelectorAll('*');
-    appendStatus(statusEl, '→ Auditing gradients');
-    let seen = 0;
-    for (const node of nodes) {
-        if (!node) continue;
-        const view = doc.defaultView;
-        if (!view) return;
-        const computed = view.getComputedStyle(node);
-        if (!computed) continue;
-        const background = computed.backgroundImage;
-        if (!background) continue;
-        const hasGradient = background.includes('gradient(');
-        if (!hasGradient) continue;
-        const preview = background.slice(0, 180);
-        appendStatus(statusEl, 'gradient bg', {
-            tag: node.tagName,
-            className: node.className,
-            background: `${preview}...`
-        });
-        seen += 1;
-        if (seen >= 30) return;
-    }
-}
+async function renderPage(doc, width, height, statusEl) {
+  const html2canvas = ensureHtml2Canvas();
+  const options = {
+    backgroundColor: '#fff',
+    useCORS: true,
+    width,
+    height,
+    windowWidth: width,
+    windowHeight: height,
+    scale: 1
+  };
+  appendStatus(statusEl, '→ Rendering', { width, height });
+  const canvas = await html2canvas(doc.documentElement, { ...options, foreignObjectRendering: true });
+  const scaled = document.createElement('canvas');
+  scaled.width = Math.round(canvas.width * PREVIEW_SCALE);
+  scaled.height = Math.round(canvas.height * PREVIEW_SCALE);
+  const ctx = scaled.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, scaled.width, scaled.height);
+  canvas.width = canvas.height = 0;
 
-function measureViewport(frame, doc, statusEl) {
-    const win = frame.contentWindow;
-    const metrics = {
-        innerWidth: null,
-        clientWidth: null,
-        bodyClient: null
-    };
-    if (win) metrics.innerWidth = win.innerWidth;
-    const root = doc.documentElement;
-    if (root) metrics.clientWidth = root.clientWidth;
-    const body = doc.body;
-    if (body) metrics.bodyClient = body.clientWidth;
-    appendStatus(statusEl, 'Viewport metrics', metrics);
-    return metrics;
-}
-
-function computePageHeight(doc, statusEl) {
-    const root = doc.documentElement;
-    if (!root) throw new Error('Snapshot missing documentElement; aborting.');
-    const body = doc.body;
-    const scrollHeight = root.scrollHeight;
-    const offsetHeight = root.offsetHeight;
-    let bodyScroll = 0;
-    if (body) bodyScroll = body.scrollHeight;
-    const height = Math.max(scrollHeight, offsetHeight, bodyScroll);
-    appendStatus(statusEl, 'Computed doc height', { height });
-    return height;
-}
-
-function clampHeight(value) {
-    if (!Number.isFinite(value)) return MAX_CAPTURE_HEIGHT;
-    if (value <= 0) return MAX_CAPTURE_HEIGHT;
-    if (value > MAX_CAPTURE_HEIGHT) return MAX_CAPTURE_HEIGHT;
-    return value;
-}
-
-function ensureHtml2Canvas() {
-    if (typeof window.html2canvas === 'function') return window.html2canvas;
-    throw new Error('Missing html2canvas global; check script tag.');
-}
-
-// 1) Replace renderWithFallback with a capped, pre-scaled renderer.
-async function renderWithFallback(doc, width, height, statusEl) {
-    const html2canvas = ensureHtml2Canvas();
-
-    // Enforce hard caps BEFORE rendering.
-    const CAP_WIDTH = Math.min(width, 1920); // tune as needed
-    const CAP_HEIGHT = clampHeight(height);  // uses your MAX_CAPTURE_HEIGHT
-    const SCALE = Math.min(PREVIEW_SCALE, 1); // ensure <= 1 (e.g. 0.25)
-
-    const baseOptions = {
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        // Critical: render smaller from the start
-        width: CAP_WIDTH,
-        height: CAP_HEIGHT,
-        windowWidth: CAP_WIDTH,
-        windowHeight: CAP_HEIGHT,
-        scrollX: 0,
-        scrollY: 0,
-        scale: SCALE,
-        onclone: (clonedDoc) => {
-            // Hard clamp the layout to the capture box so measures don't explode.
-            const el = clonedDoc.documentElement;
-            const body = clonedDoc.body;
-            const clampCss = `
-                html, body { 
-                    width: ${CAP_WIDTH}px !important; 
-                    max-width: ${CAP_WIDTH}px !important; 
-                    height: ${CAP_HEIGHT}px !important; 
-                    max-height: ${CAP_HEIGHT}px !important; 
-                    overflow: hidden !important; 
-                }
-                * { animation: none !important; transition: none !important; }
-            `;
-            const style = clonedDoc.createElement('style');
-            style.textContent = clampCss;
-            (clonedDoc.head || el).appendChild(style);
-        }
-    };
-
-    appendStatus(statusEl, '→ html2canvas (canvas renderer) start', {
-        width: CAP_WIDTH, height: CAP_HEIGHT, scale: SCALE
-    });
-
-    try {
-        const canvas = await html2canvas(doc.documentElement, {
-            ...baseOptions,
-            foreignObjectRendering: false
-        });
-        appendStatus(statusEl, '✓ html2canvas (canvas) complete', {
-            outW: canvas.width, outH: canvas.height
-        });
-        return canvas;
-    } catch (error) {
-        appendStatus(statusEl, '⚠ canvas mode failed; trying foreignObject', { message: error?.message || 'unknown' });
-        const fallback = await html2canvas(doc.documentElement, {
-            ...baseOptions,
-            foreignObjectRendering: true
-        });
-        appendStatus(statusEl, '✓ html2canvas (foreignObject) complete', {
-            outW: fallback.width, outH: fallback.height
-        });
-        return fallback;
-    }
-}
-
-
-function downscaleCanvas(canvas, scale) {
-    if (!canvas) throw new Error('Missing canvas for downscale.');
-    if (!Number.isFinite(scale)) return canvas;
-    if (scale <= 0) return canvas;
-    if (scale >= 1) return canvas;
-    const width = canvas.width;
-    if (!Number.isFinite(width)) return canvas;
-    if (width <= 0) return canvas;
-    const height = canvas.height;
-    if (!Number.isFinite(height)) return canvas;
-    if (height <= 0) return canvas;
-    const target = document.createElement('canvas');
-    target.width = Math.max(1, Math.round(width * scale));
-    target.height = Math.max(1, Math.round(height * scale));
-    const context = target.getContext('2d', { alpha: false });
-    if (!context) return canvas;
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = 'high';
-    context.drawImage(canvas, 0, 0, target.width, target.height);
-    canvas.width = 0;
-    canvas.height = 0;
-    return target;
+  return scaled;
 }
 
 async function exportCanvasBlob(canvas) {
-    if (!canvas) throw new Error('Missing canvas for export.');
-    if (typeof canvas.convertToBlob === 'function') {
-        try {
-            const blob = await canvas.convertToBlob({ type: EXPORT_MIME, quality: EXPORT_QUALITY });
-            if (blob) return blob;
-        } catch (error) {
-            // ignore and fall back
-        }
-    }
-    if (typeof canvas.toBlob !== 'function') throw new Error('Canvas toBlob missing; cannot export.');
-    return new Promise((resolve, reject) => {
-        canvas.toBlob((blob) => {
-            if (!blob) {
-                reject(new Error('Canvas toBlob produced no blob.'));
-                return;
-            }
-            resolve(blob);
-        }, EXPORT_MIME, EXPORT_QUALITY);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(b => (b ? resolve(b) : reject()), EXPORT_MIME, EXPORT_QUALITY)
+  );
+}
+
+const createBlobUrl = blob => URL.createObjectURL(blob);
+
+const releaseBlobUrls = () => {
+  blobUrls.forEach(url => URL.revokeObjectURL(url));
+  blobUrls.clear();
+};
+
+const scheduleFetchCooldown = statusEl => {
+  nextFetchReadyAt = Date.now() + FETCH_COOLDOWN_MS;
+  appendStatus(statusEl, `→ Cooling down ${FETCH_COOLDOWN_MS}ms`);
+};
+
+async function capturePage({ url, mode, width, statusEl, gallery, hasNext }) {
+  appendStatus(statusEl, '→ Capture', { url, mode });
+  const html = await fetchSnapshot(url, statusEl);
+  const frame = buildIframe(width);
+  try {
+    const doc = writeHtmlIntoFrame(frame, html);
+    freezeAnimations(doc);
+    await raf(); await raf();
+    await settleFonts(doc, statusEl);
+    const rawHeight = computePageHeight(doc);
+    const captureHeight = clampHeight(rawHeight);
+    const canvas = await renderPage(doc, width, captureHeight, statusEl);
+    const blob = await exportCanvasBlob(canvas);
+    const blobUrl = createBlobUrl(blob);
+    blobUrls.add(blobUrl);
+    gallery.append({
+      host: deriveHost(url),
+      mode,
+      pageUrl: url,
+      imageUrl: blobUrl,
+      blob,
+      dimensions: { width: canvas.width, height: canvas.height },
+      mime: blob.type
     });
-}
-
-function createBlobUrl(blob) {
-    const url = URL.createObjectURL(blob);
-    if (!url) throw new Error('Failed to create blob URL.');
-    return url;
-}
-
-function rememberBlobUrl(url) {
-    if (!url) return;
-    blobUrls.add(url);
-}
-
-function releaseBlobUrls() {
-    for (const url of blobUrls) {
-        if (!url) continue;
-        URL.revokeObjectURL(url);
-    }
-    blobUrls.clear();
-}
-
-function scheduleFetchCooldown(statusEl) {
-    nextFetchReadyAt = Date.now() + FETCH_COOLDOWN_MS;
-    appendStatus(statusEl, `→ Cooling down for ${FETCH_COOLDOWN_MS}ms before next fetch`);
-}
-
-function waitForIframeLoad(frame, statusEl) {
-    return new Promise((resolve) => {
-        let settled = false;
-        const timer = window.setTimeout(() => {
-            if (settled) return;
-            settled = true;
-            appendStatus(statusEl, '⚠ iframe load timeout (continuing)');
-            resolve();
-        }, 8000);
-        frame.onload = () => {
-            if (settled) return;
-            settled = true;
-            window.clearTimeout(timer);
-            appendStatus(statusEl, '✓ iframe onload');
-            resolve();
-        };
-    });
-}
-
-// 2) In capturePage, stop measuring full doc for render size.
-// Keep computePageHeight for logging, but USE a capped captureHeight for rendering.
-async function capturePage(params) {
-    const { url, mode, width, statusEl, gallery, batchIndex, batchTotal, hasNext } = params;
-    appendStatus(statusEl, '→ Capture requested', { url, mode, width });
-
-    const html = await fetchSnapshot(url, statusEl);
-    const frame = buildIframe(width);
-    try {
-        const doc = writeHtmlIntoFrame(frame, html);
-        await waitForIframeLoad(frame, statusEl);
-
-        // Freeze animations + only wait for fonts. Skip image pre-decode to save RAM.
-        freezeAnimations(doc);
-        await raf(); await raf();
-        await settleFonts(doc, statusEl);
-
-        // Measure for diagnostics only.
-        const rawHeight = computePageHeight(doc, statusEl);
-
-        // Use a capped height for the actual render.
-        const captureHeight = clampHeight(rawHeight);
-
-        // Render pre-scaled and pre-capped.
-        const canvas = await renderWithFallback(doc, width, captureHeight, statusEl);
-
-        // Export and release ASAP.
-        const blob = await exportCanvasBlob(canvas);
-        const blobUrl = createBlobUrl(blob);
-        rememberBlobUrl(blobUrl);
-
-        const image = {
-            host: deriveHost(url),
-            mode,
-            pageUrl: url,
-            pageTitle: doc.title || 'Captured page',
-            imageUrl: blobUrl,
-            blob,
-            dimensions: { width: canvas.width, height: canvas.height },
-            sourceDimensions: { width: canvas.width, height: canvas.height },
-            mime: blob.type || EXPORT_MIME
-        };
-        gallery.append(image);
-
-        // Immediate release
-        canvas.width = 0; canvas.height = 0;
-
-        appendStatus(statusEl, '✓ Done', {
-            pageUrl: url,
-            outW: image.dimensions.width,
-            outH: image.dimensions.height,
-            mime: image.mime
-        });
-
-        if (hasNext) {
-            scheduleFetchCooldown(statusEl);
-        } else {
-            nextFetchReadyAt = 0;
-        }
-    } finally {
-        removeIframe(frame);
-    }
-}
-
-
-function initSidebar(appShell, sidebar, toggleBtn, labelEl, iconEl) {
-    function applyState(state) {
-        appShell.dataset.sidebar = state;
-        const expanded = state === 'expanded';
-        toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-        sidebar.setAttribute('aria-hidden', expanded ? 'false' : 'true');
-        if (labelEl) labelEl.textContent = expanded ? 'Hide controls' : 'Show controls';
-        if (iconEl) iconEl.textContent = expanded ? '⟨' : '⟩';
-    }
-
-    let initial = appShell.dataset.sidebar;
-    if (!initial) initial = 'expanded';
-    let prefersCollapsed = false;
-    if (window.matchMedia) {
-        const query = window.matchMedia('(max-width: 960px)');
-        if (query) {
-            if (query.matches) prefersCollapsed = true;
-        }
-    }
-    if (prefersCollapsed) initial = 'collapsed';
-    applyState(initial);
-
-    toggleBtn.addEventListener('click', () => {
-        const current = appShell.dataset.sidebar;
-        if (current === 'collapsed') {
-            applyState('expanded');
-            return;
-        }
-        applyState('collapsed');
-    });
-}
-
-function validateUrl(value) {
-    if (!value) throw new Error('Missing field url; add to form.');
-    const trimmed = value.trim();
-    const pattern = /^https?:\/\//i;
-    if (!pattern.test(trimmed)) throw new Error(`Invalid URL; include http or https prefix (${value}).`);
-    return trimmed;
-}
-
-function parseUrlInput(rawValue) {
-    if (!rawValue) throw new Error('Missing field url; add to form.');
-    const trimmed = rawValue.trim();
-    if (!trimmed) throw new Error('Provide at least one URL to capture.');
-    const tokens = trimmed.split(/\s+/);
-    const urls = [];
-    const seen = new Set();
-    for (const token of tokens) {
-        if (!token) continue;
-        const normalized = validateUrl(token);
-        if (seen.has(normalized)) continue;
-        seen.add(normalized);
-        urls.push(normalized);
-    }
-    if (!urls.length) throw new Error('Provide at least one valid URL to capture.');
-    return urls;
+    canvas.width = canvas.height = 0;
+    appendStatus(statusEl, '✓ Done', { url });
+    if (hasNext) scheduleFetchCooldown(statusEl);
+  } finally {
+    removeIframe(frame);
+  }
 }
 
 async function fetchSitemapUrls(baseUrl, statusEl) {
-    appendStatus(statusEl, '→ Fetching sitemap', { url: baseUrl });
-    const endpoint = `${SITEMAP_ENDPOINT}?url=${encodeURIComponent(baseUrl)}`;
-    let response;
-    try {
-        response = await fetch(endpoint);
-    } catch (error) {
-        appendStatus(statusEl, '❌ Sitemap request failed', { url: baseUrl, message: error.message });
-        throw new Error('Sitemap request failed; check network or CORS.');
-    }
-    if (!response.ok) {
-        appendStatus(statusEl, '❌ Sitemap response error', { url: baseUrl, status: response.status });
-        throw new Error(`Sitemap request failed (${response.status}).`);
-    }
-    let data;
-    try {
-        data = await response.json();
-    } catch (error) {
-        appendStatus(statusEl, '❌ Sitemap parse error', { url: baseUrl });
-        throw new Error('Failed to parse sitemap response.');
-    }
-    const entries = data && Array.isArray(data.sitemap) ? data.sitemap : [];
-    if (!entries.length) {
-        appendStatus(statusEl, '❌ Sitemap empty', { url: baseUrl });
-        throw new Error('Sitemap returned no URLs.');
-    }
-    appendStatus(statusEl, '✓ Sitemap loaded', { url: baseUrl, count: entries.length });
-    return entries;
+  const endpoint = `${SITEMAP_ENDPOINT}?url=${encodeURIComponent(baseUrl)}`;
+  const res = await fetch(endpoint);
+  if (!res.ok) throw new Error(`Sitemap fetch failed (${res.status})`);
+  const data = await res.json();
+  const list = Array.isArray(data.sitemap) ? data.sitemap : [];
+  if (!list.length) throw new Error('Empty sitemap');
+  appendStatus(statusEl, '✓ Sitemap loaded', { count: list.length });
+  return list;
 }
 
-function normalizeCaptureUrl(value) {
-    if (!value) return '';
-    const trimmed = value.trim();
-    if (!trimmed) return '';
-    const isHttp = /^https?:\/\//i.test(trimmed);
-    if (!isHttp) return '';
-    return trimmed;
+function parseUrlInput(raw) {
+  const urls = raw.trim().split(/\s+/);
+  return [...new Set(urls.filter(u => /^https?:\/\//i.test(u)))];
 }
 
-async function collectSitemapUrls(rawValue, statusEl) {
-    const bases = parseUrlInput(rawValue);
-    const seen = new Set();
-    const urls = [];
-    for (const baseUrl of bases) {
-        const entries = await fetchSitemapUrls(baseUrl, statusEl);
-        for (const entry of entries) {
-            const normalized = normalizeCaptureUrl(entry);
-            if (!normalized) continue;
-            if (seen.has(normalized)) continue;
-            seen.add(normalized);
-            urls.push(normalized);
-        }
-    }
-    if (!urls.length) throw new Error('No valid URLs returned from sitemap.');
-    appendStatus(statusEl, '✓ Aggregated sitemap URLs', { total: urls.length });
-    return urls;
+async function collectSitemapUrls(raw, statusEl) {
+  const bases = parseUrlInput(raw);
+  const urls = [];
+  for (const base of bases) {
+    const entries = await fetchSitemapUrls(base, statusEl);
+    urls.push(...entries.filter(u => /^https?:\/\//i.test(u)));
+  }
+  appendStatus(statusEl, '✓ URLs collected', { total: urls.length });
+  return urls;
 }
 
 async function handleCapture(form, urlInput, modeInputs, statusEl, gallery) {
-    try {
-        disableForm(form, true);
-        writeStatus(statusEl, '');
-        const urls = await collectSitemapUrls(urlInput.value, statusEl);
-        const total = urls.length;
-        const mode = readMode(modeInputs);
-        const width = resolveViewportWidth(mode);
-        nextFetchReadyAt = 0;
-        appendStatus(statusEl, '→ Batch capture start', { total });
-        for (let index = 0; index < total; index += 1) {
-            const pageUrl = urls[index];
-            const batchIndex = index + 1;
-            const hasNext = batchIndex < total;
-            appendStatus(statusEl, `→ Starting ${batchIndex}/${total}`, { pageUrl });
-            await capturePage({
-                url: pageUrl,
-                mode,
-                width,
-                statusEl,
-                gallery,
-                batchIndex,
-                batchTotal: total,
-                hasNext
-            });
-        }
-        appendStatus(statusEl, '✓ Batch capture complete', { total });
-    } catch (error) {
-        console.error(error);
-        let message = 'Capture failed; check console.';
-        if (error) {
-            if (error.message) message = error.message;
-        }
-        appendStatus(statusEl, `Error: ${message}`);
-    } finally {
-        disableForm(form, false);
-    }
+  disableForm(form, true);
+  writeStatus(statusEl, '');
+  const urls = await collectSitemapUrls(urlInput.value, statusEl);
+  const mode = Array.from(modeInputs).find(r => r.checked)?.value || 'desktop';
+  const width = resolveViewportWidth(mode);
+  for (let i = 0; i < urls.length; i++) {
+    const hasNext = i < urls.length - 1;
+    await capturePage({ url: urls[i], mode, width, statusEl, gallery, hasNext });
+  }
+  disableForm(form, false);
 }
 
 function init() {
-    const form = selectById('capture-form');
-    const urlInput = selectById('urlInput');
-    const statusEl = selectById('sessionStatus');
-    const galleryContainer = selectById('result');
-    const newSessionBtn = selectById('newSessionBtn');
-    const clearGalleryBtn = selectById('clearGalleryBtn');
-    const appShell = document.querySelector('.app-shell');
-    if (!appShell) throw new Error('Missing app shell; check layout.');
-    const sidebar = selectById('sidebar');
-    const sidebarToggleBtn = selectById('sidebarToggle');
-    const sidebarToggleLabel = document.getElementById('sidebarToggleLabel');
-    const sidebarToggleIcon = document.getElementById('sidebarToggleIcon');
-    const modeInputs = document.querySelectorAll('input[name="mode"]');
+  const form = selectById('capture-form');
+  const urlInput = selectById('urlInput');
+  const statusEl = selectById('sessionStatus');
+  const galleryContainer = selectById('result');
+  const newSessionBtn = selectById('newSessionBtn');
+  const clearGalleryBtn = selectById('clearGalleryBtn');
+  const modeInputs = document.querySelectorAll('input[name="mode"]');
+  const gallery = createGallery(galleryContainer);
 
-    if (statusEl) {
-        if (!statusEl.style.whiteSpace) statusEl.style.whiteSpace = 'pre-line';
-        if (!statusEl.style.maxHeight) statusEl.style.maxHeight = '200px';
-        if (!statusEl.style.overflowY) statusEl.style.overflowY = 'auto';
-        if (!statusEl.style.paddingRight) statusEl.style.paddingRight = '8px';
-    }
+  writeStatus(statusEl, 'Idle. Ready.');
 
-    const gallery = createGallery(galleryContainer);
-    writeStatus(statusEl, 'Idle. Ready for local capture.');
-
-    initSidebar(appShell, sidebar, sidebarToggleBtn, sidebarToggleLabel, sidebarToggleIcon);
-
-    newSessionBtn.addEventListener('click', () => {
-        releaseBlobUrls();
-        gallery.clear();
-        writeStatus(statusEl, 'Session reset.');
-    });
-
-    clearGalleryBtn.addEventListener('click', () => {
-        releaseBlobUrls();
-        gallery.clear();
-        writeStatus(statusEl, 'Gallery cleared.');
-    });
-
-    form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        await handleCapture(form, urlInput, modeInputs, statusEl, gallery);
-    });
-}
-
-window.addEventListener('beforeunload', () => {
+  newSessionBtn.onclick = () => {
     releaseBlobUrls();
-});
+    gallery.clear();
+    writeStatus(statusEl, 'Session reset.');
+  };
 
-function patchAddColorStop() {
-    try {
-        const ctor = window.CanvasGradient;
-        if (!ctor) return;
-        const proto = ctor.prototype;
-        if (!proto) return;
-        if (proto.__patched__) return;
-        const original = proto.addColorStop;
-        if (!original) return;
-        proto.addColorStop = function addColorStop(offset, color) {
-            let value = Number(offset);
-            if (!Number.isFinite(value)) value = 0;
-            if (value < 0) value = 0;
-            if (value > 1) value = 1;
-            let finalColor = color;
-            const isString = typeof finalColor === 'string';
-            if (!isString) finalColor = 'rgba(0,0,0,0)';
-            if (!finalColor) finalColor = 'rgba(0,0,0,0)';
-            return original.call(this, value, finalColor);
-        };
-        proto.__patched__ = true;
-        console.info('[local] Patched CanvasGradient.addColorStop guard.');
-    } catch (error) {
-        console.warn('[local] Failed to patch addColorStop (non-fatal).', error);
-    }
+  clearGalleryBtn.onclick = () => {
+    releaseBlobUrls();
+    gallery.clear();
+    writeStatus(statusEl, 'Gallery cleared.');
+  };
+
+  form.onsubmit = async e => {
+    e.preventDefault();
+    await handleCapture(form, urlInput, modeInputs, statusEl, gallery);
+  };
 }
 
-patchAddColorStop();
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+window.addEventListener('beforeunload', releaseBlobUrls);
+document.readyState === 'loading'
+  ? document.addEventListener('DOMContentLoaded', init)
+  : init();
