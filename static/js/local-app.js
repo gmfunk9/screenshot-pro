@@ -198,24 +198,7 @@ function releaseBlobUrls() {
     blobUrls.clear();
 }
 
-function enforceZoom(statusEl) {
-    const ratio = window.devicePixelRatio || 1;
-    const percent = Math.round(ratio * 100);
-
-    if (ratio !== 1) {
-        if (statusEl) {
-            statusEl.textContent = `⚠️ Zoom is ${percent}%. Set browser zoom to 100% before capture.`;
-            statusEl.scrollTop = statusEl.scrollHeight;
-        } else {
-            alert(`⚠️ Zoom is ${percent}%. Set browser zoom to 100% before capture.`);
-        }
-        throw new Error(`Zoom ${percent}% not allowed`);
-    }
-}
-
-
 async function capturePage(params) {
-    enforceZoom(params.statusElement);
     appendStatus(params.statusElement, `→ Capture ${params.url} (${params.mode})`);
     const htmlText = await fetchSnapshot(params.url);
 

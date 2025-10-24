@@ -1,25 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Screenshot Pro — Light Mode Demo</title>
-    <link rel="stylesheet" href="./static/css/style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-</head>
+    <title>FunkPd's Screenshot Pro: Light Mode Demo</title>
+    <!-- Preload critical CSS -->
+    <link rel="preload" href="./static/css/style.css" as="style" />
+    <link rel="stylesheet" href="./static/css/style.css" media="all" />
+
+    <!-- Preload critical scripts (async loaded later) -->
+    <link rel="preload" href="./static/js/html2canvas.min.js" as="script" />
+    <link rel="preload" href="./static/js/app-init.js" as="script" />
+
+    <!-- Defer all scripts -->
+    <script src="./static/js/html2canvas.min.js" defer></script>
+    <script src="./static/js/gallery.js" defer></script>
+    <script src="./static/js/ui-utils.js" defer></script>
+    <script src="./static/js/net-fetch.js" defer></script>
+    <script src="./static/js/frame-tools.js" defer></script>
+    <script src="./static/js/capture-core.js" defer></script>
+    <script src="./static/js/app-init.js" defer></script>
+    <script src="./static/js/sidebar.js" defer></script>
+    <script src="./static/js/enforce-zoom.js" defer></script></head>
+
 <body>
     <div class="app-shell" data-sidebar="expanded">
         <aside id="sidebar" class="sidebar" aria-label="Capture controls">
             <header class="sidebar__header">
-                <h1 class="sidebar__title">Screenshot Pro</h1>
+                <h1 class="sidebar__title">FunkPd's Screenshot Pro</h1>
                 <p class="sidebar__subtitle">Light mode free demo while we build the full release.</p>
                 <p class="sidebar__notice">Email <a href="mailto:screenshotpro@funkpd.com">screenshotpro@funkpd.com</a> if this helps. Pro mode will be $10/month for faster loads, full resolution, and full-size screenshots, cookie login support & more.</p>
+                <p class="sidebar__notice">Captures happen in your browser. Expect long waits on large pages.</p>
+
             </header>
-            <form id="capture-form" class="stack stack--md" novalidate>
+            <div id="capture-panel" class="stack stack--md">
                 <label class="field">
                     <span class="field__label">Page URL</span>
-                    <input type="url" id="urlInput" name="url" placeholder="https://example.com" required>
+                    <input type="url" id="urlInput" placeholder="https://example.com">
                 </label>
+
                 <fieldset class="fieldset">
                     <legend class="field__label">Viewport mode</legend>
                     <div class="segmented" role="radiogroup" aria-label="Viewport mode">
@@ -37,13 +57,14 @@
                         </label>
                     </div>
                 </fieldset>
-                <button type="submit" class="button button--primary">Capture page locally</button>
-            </form>
+                <button id="captureBtn" class="button button--primary">Capture page locally</button>
+
+            </div>
+
             <section class="stack stack--lg" aria-label="Session controls">
                 <div class="cluster">
                     <button id="clearGalleryBtn" type="button" class="button">Clear gallery</button>
                 </div>
-                <p class="field__help">Captures happen in your browser. Expect long waits on large pages.</p>
             </section>
             <footer class="sidebar__footer">
                 <div class="sidebar__log" role="log" aria-live="polite">
@@ -61,7 +82,6 @@
             <span id="sidebarToggleLabel" class="sidebar-toggle__label">Hide controls</span>
         </button>
     </div>
-    <script src="./static/js/gallery.js"></script>
-    <script src="./static/js/local-app.js"></script>
 </body>
+
 </html>

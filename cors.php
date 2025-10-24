@@ -1,5 +1,5 @@
 <?php
-// cors.php — self-hosted CORS inliner with local cache and media preservation
+// cors.php: self-hosted CORS inliner with local cache and media preservation
 // This is just a reference file, the real file is on a different server.
 
 header('Access-Control-Allow-Origin: *');
