@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-const VIEWPORTS = { mobile: 390, tablet: 834, desktop: 1920 };
+const VIEWPORTS = { mobile: 420, tablet: 768, desktop: 1920 };
 const PROXY_ENDPOINT = '/proxy';
 const MAX_CAPTURE_HEIGHT = 12000;
 const CAPTURE_SCALE = 0.5;
