@@ -1,25 +1,46 @@
 function setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, nextState) {
-  appShell.dataset.sidebar = nextState;
-  const expanded = nextState === 'expanded';
-  toggleBtn.setAttribute('aria-expanded', expanded);
-  sidebar.setAttribute('aria-hidden', !expanded);
-  if (labelEl) labelEl.textContent = expanded ? 'Hide controls' : 'Show controls';
-  if (iconEl) iconEl.textContent = expanded ? '⟨' : '⟩';
+    appShell.dataset.sidebar = nextState;
+    const isExpanded = nextState === 'expanded';
+    toggleBtn.setAttribute('aria-expanded', isExpanded);
+    const isHidden = !isExpanded;
+    sidebar.setAttribute('aria-hidden', isHidden);
+    if (labelEl) {
+        let labelText;
+        if (isExpanded) {
+            labelText = 'Hide controls';
+        } else {
+            labelText = 'Show controls';
+        }
+        labelEl.textContent = labelText;
+    }
+    if (iconEl) {
+        let iconText;
+        if (isExpanded) {
+            iconText = '⟨';
+        } else {
+            iconText = '⟩';
+        }
+        iconEl.textContent = iconText;
+    }
 }
-
 function initSidebar(appShell, sidebar, toggleBtn, labelEl, iconEl) {
-  let state = appShell.dataset.sidebar || 'expanded';
-  setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, state);
-  toggleBtn.addEventListener('click', () => {
-    state = state === 'collapsed' ? 'expanded' : 'collapsed';
-    setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, state);
-  });
+    let currentState = appShell.dataset.sidebar || 'expanded';
+    setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, currentState);
+    toggleBtn.addEventListener('click', () => {
+        let newState;
+        if (currentState === 'collapsed') {
+            newState = 'expanded';
+        } else {
+            newState = 'collapsed';
+        }
+        currentState = newState;
+        setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, currentState);
+    });
 }
-
 initSidebar(
-  document.querySelector('.app-shell'),
-  document.getElementById('sidebar'),
-  document.getElementById('sidebarToggle'),
-  document.getElementById('sidebarToggleLabel'),
-  document.getElementById('sidebarToggleIcon')
+    document.querySelector('.app-shell'),
+    document.getElementById('sidebar'),
+    document.getElementById('sidebarToggle'),
+    document.getElementById('sidebarToggleLabel'),
+    document.getElementById('sidebarToggleIcon')
 );

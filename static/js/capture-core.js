@@ -3,86 +3,114 @@ const PREVIEW_SCALE = 0.25;
 const EXPORT_MIME = 'image/webp';
 const EXPORT_QUALITY = 0.7;
 const blobUrls = new Set();
-
-function computeCaptureBox(doc) {
-    const html = doc.documentElement;
-    const body = doc.body;
-    const cssWidth = Math.max(html.scrollWidth, body.scrollWidth);
-    const rawHeight = Math.max(html.scrollHeight, body.scrollHeight);
-    const cssHeight = rawHeight > MAX_CAPTURE_HEIGHT ? MAX_CAPTURE_HEIGHT : rawHeight;
-    return { cssWidth, cssHeight };
+const MODE_VIEWPORT_WIDTHS = {
+    desktop: 1920,
+    tablet: 768,
+    mobile: 420
+};
+function computeCaptureBox(document) {
+    const htmlElement = document.documentElement;
+    const bodyElement = document.body;
+    const computedWidth = Math.max(htmlElement.scrollWidth, bodyElement.scrollWidth);
+    const rawComputedHeight = Math.max(htmlElement.scrollHeight, bodyElement.scrollHeight);
+    let computedHeight;
+    if (rawComputedHeight > MAX_CAPTURE_HEIGHT) {
+        computedHeight = MAX_CAPTURE_HEIGHT;
+    } else {
+        computedHeight = rawComputedHeight;
+    }
+    return {
+        cssWidth: computedWidth,
+        cssHeight: computedHeight
+    };
 }
-
-async function renderPage(doc, forcedWidth) {
-    const box = computeCaptureBox(doc);
-    const cssWidth = box.cssWidth || forcedWidth;
-    const cssHeight = box.cssHeight;
-
-    const options = {
+async function renderPage(document, forcedWidth) {
+    const captureBox = computeCaptureBox(document);
+    let cssWidthValue;
+    if (captureBox.cssWidth) {
+        cssWidthValue = captureBox.cssWidth;
+    } else {
+        cssWidthValue = forcedWidth;
+    }
+    const cssHeightValue = captureBox.cssHeight;
+    const renderingOptions = {
         backgroundColor: '#fff',
         useCORS: true,
-        width: cssWidth,
-        height: cssHeight,
-        windowWidth: cssWidth,
-        windowHeight: cssHeight,
+        width: cssWidthValue,
+        height: cssHeightValue,
+        windowWidth: cssWidthValue,
+        windowHeight: cssHeightValue,
         scrollX: 0,
         scrollY: 0,
         scale: 1,
         foreignObjectRendering: true
     };
-
-    const canvas = await window.html2canvas(doc.documentElement, options);
-    const preview = document.createElement('canvas');
-    preview.width = Math.round(canvas.width * PREVIEW_SCALE);
-    preview.height = Math.round(canvas.height * PREVIEW_SCALE);
-    const ctx = preview.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(canvas, 0, 0, preview.width, preview.height);
-    canvas.width = 0;
-    canvas.height = 0;
-    return preview;
+    const fullCanvas = await window.html2canvas(document.documentElement, renderingOptions);
+    const previewCanvas = document.createElement('canvas');
+    const previewWidth = Math.round(fullCanvas.width * PREVIEW_SCALE);
+    previewCanvas.width = previewWidth;
+    const previewHeight = Math.round(fullCanvas.height * PREVIEW_SCALE);
+    previewCanvas.height = previewHeight;
+    const canvasContext = previewCanvas.getContext('2d');
+    canvasContext.imageSmoothingEnabled = true;
+    canvasContext.imageSmoothingQuality = 'high';
+    canvasContext.drawImage(fullCanvas, 0, 0, previewWidth, previewHeight);
+    fullCanvas.width = 0;
+    fullCanvas.height = 0;
+    return previewCanvas;
 }
-
-function exportCanvasBlob(canvas) {
+function exportCanvasToBlob(canvasElement) {
     return new Promise((resolve, reject) => {
-        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Canvas export failed')), EXPORT_MIME, EXPORT_QUALITY);
+        canvasElement.toBlob(
+            function(blob) {
+                if (blob) {
+                    resolve(blob);
+                } else {
+                    reject(new Error('Canvas export failed'));
+                }
+            },
+            EXPORT_MIME,
+            EXPORT_QUALITY
+        );
     });
 }
-
-function releaseBlobUrls() {
-    for (const u of blobUrls) URL.revokeObjectURL(u);
-    blobUrls.clear();
-}
-
-async function capturePage(params) {
-    appendStatus(params.statusEl, `→ Capture ${params.url} (${params.mode})`);
-    const html = await fetchSnapshot(params.url);
-    const width = cssWidthForTrue1920();
-    const iframe = buildIframe(width);
-
+async function capturePage(captureParams) {
+    const statusElement = captureParams.statusEl;
+    const url = captureParams.url;
+    const mode = captureParams.mode;
+    const gallery = captureParams.gallery;
+    appendStatus(statusElement, `→ Capture ${url} (${mode})`);
+    const htmlContent = await fetchSnapshot(url);
+    const baseViewportWidth = MODE_VIEWPORT_WIDTHS[mode] || 1920;
+    const iframeWidth = cssWidthForTrue1920(baseViewportWidth);
+    const iframeElement = buildIframe(iframeWidth);
     try {
-        const doc = writeHtmlIntoFrame(iframe, html);
-        forceFixedCssWidth(doc, width);
-        freezeAnimations(doc);
-        await new Promise(r => requestAnimationFrame(r));
-        const preview = await renderPage(doc, width);
-        const blob = await exportCanvasBlob(preview);
-        const blobUrl = URL.createObjectURL(blob);
-        blobUrls.add(blobUrl);
-        params.gallery.append({
-            host: new URL(params.url).hostname,
-            mode: params.mode,
-            pageUrl: params.url,
-            imageUrl: blobUrl,
-            blob,
-            dimensions: { width: preview.width, height: preview.height },
-            mime: blob.type
+        const iframeDocument = writeHtmlIntoFrame(iframeElement, htmlContent);
+        forceFixedCssWidth(iframeDocument, iframeWidth);
+        freezeAnimations(iframeDocument);
+        await new Promise(resolveFunction => requestAnimationFrame(resolveFunction));
+        const previewCanvas = await renderPage(iframeDocument, iframeWidth);
+        const imageBlob = await exportCanvasToBlob(previewCanvas);
+        const objectUrl = URL.createObjectURL(imageBlob);
+        blobUrls.add(objectUrl);
+        const urlObject = new URL(url);
+        const hostName = urlObject.hostname;
+        gallery.append({
+            host: hostName,
+            mode: mode,
+            pageUrl: url,
+            imageUrl: objectUrl,
+            blob: imageBlob,
+            dimensions: {
+                width: previewCanvas.width,
+                height: previewCanvas.height
+            },
+            mime: imageBlob.type
         });
-        preview.width = 0;
-        preview.height = 0;
-        appendStatus(params.statusEl, '✓ Done');
+        previewCanvas.width = 0;
+        previewCanvas.height = 0;
+        appendStatus(statusElement, '✓ Done');
     } finally {
-        removeIframe(iframe);
+        removeIframe(iframeElement);
     }
 }

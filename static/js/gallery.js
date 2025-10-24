@@ -1,209 +1,222 @@
-(function () {
-    'use strict';
-
-    const PLACEHOLDER_TEXT = 'Screenshots will appear here as they finish.';
-
-    function normalizeModeValue(mode) {
-        if (!mode) return 'desktop';
-        if (typeof mode !== 'string') return 'desktop';
-        const trimmed = mode.trim();
-        if (trimmed === '') return 'desktop';
-        return trimmed;
+const PLACEHOLDER_TEXT = 'Screenshots will appear here as they finish.';
+function normalizeModeValue(mode) {
+    if (!mode) {
+        return 'desktop';
     }
-
-    function formatMode(mode) {
-        if (!mode) return 'Desktop';
-        const lower = mode.toLowerCase();
-        if (lower === 'mobile') return 'Mobile';
-        if (lower === 'tablet') return 'Tablet';
-        if (lower === 'desktop') return 'Desktop';
-        return mode;
+    if (typeof mode !== 'string') {
+        return 'desktop';
     }
-
-    function normalizeDimensions(size) {
-        const result = { width: 0, height: 0 };
-        if (!size) return result;
-        const width = Number(size.width);
-        if (Number.isFinite(width)) result.width = width;
-        const height = Number(size.height);
-        if (Number.isFinite(height)) result.height = height;
+    const trimmedMode = mode.trim();
+    if (trimmedMode === '') {
+        return 'desktop';
+    }
+    return trimmedMode;
+}
+function formatMode(mode) {
+    if (!mode) {
+        return 'Desktop';
+    }
+    const lowerCaseMode = mode.toLowerCase();
+    if (lowerCaseMode === 'mobile') {
+        return 'Mobile';
+    }
+    if (lowerCaseMode === 'tablet') {
+        return 'Tablet';
+    }
+    if (lowerCaseMode === 'desktop') {
+        return 'Desktop';
+    }
+    return mode;
+}
+function normalizeDimensions(size) {
+    const result = { width: 0, height: 0 };
+    if (!size) {
         return result;
     }
-
-    function describeImage(image) {
-        if (!image) throw new Error('Missing image payload.');
-        const normalizedMode = normalizeModeValue(image.mode);
-        const meta = {
-            host: '',
-            pageTitle: 'Captured screenshot',
-            pageUrl: '',
-            imageUrl: '',
-            mode: normalizedMode,
-            modeLabel: formatMode(normalizedMode),
-            dimensions: normalizeDimensions(image.dimensions),
-            sourceDimensions: normalizeDimensions(image.sourceDimensions),
-            mime: ''
-        };
-        if (typeof image.host === 'string') {
-            if (image.host !== '') meta.host = image.host;
-        }
-        if (typeof image.pageTitle === 'string') {
-            if (image.pageTitle !== '') meta.pageTitle = image.pageTitle;
-        }
-        if (typeof image.pageUrl === 'string') {
-            if (image.pageUrl !== '') meta.pageUrl = image.pageUrl;
-        }
-        if (typeof image.imageUrl === 'string') {
-            if (image.imageUrl !== '') meta.imageUrl = image.imageUrl;
-        }
-        if (typeof image.mime === 'string') {
-            if (image.mime !== '') meta.mime = image.mime;
-        }
-        if (meta.imageUrl === '') throw new Error('Missing image URL; ensure capture stored.');
-        return meta;
+    const widthValue = Number(size.width);
+    if (Number.isFinite(widthValue)) {
+        result.width = widthValue;
     }
-
-    function buildPlaceholder() {
-        const message = document.createElement('p');
-        message.className = 'gallery__placeholder';
-        message.textContent = PLACEHOLDER_TEXT;
-        return message;
+    const heightValue = Number(size.height);
+    if (Number.isFinite(heightValue)) {
+        result.height = heightValue;
     }
-
-    function buildLink(href, label) {
-        const link = document.createElement('a');
-        link.href = href;
-        link.textContent = label;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        return link;
+    return result;
+}
+function describeImage(image) {
+    if (!image) {
+        throw new Error('Missing image payload.');
     }
-
-    function applySize(media, size) {
-        if (!size) return;
-        const width = size.width;
-        if (Number.isFinite(width)) media.width = width;
-        const height = size.height;
-        if (Number.isFinite(height)) media.height = height;
+    const normalizedMode = normalizeModeValue(image.mode);
+    const meta = {
+        host: '',
+        pageTitle: 'Captured screenshot',
+        pageUrl: '',
+        imageUrl: '',
+        mode: normalizedMode,
+        modeLabel: formatMode(normalizedMode),
+        dimensions: normalizeDimensions(image.dimensions),
+        sourceDimensions: normalizeDimensions(image.sourceDimensions),
+        mime: ''
+    };
+    if (typeof image.host === 'string') {
+        if (image.host !== '') {
+            meta.host = image.host;
+        }
     }
-
-    function buildImageCard(image) {
-        let meta;
-        try {
-            meta = describeImage(image);
-        } catch (error) {
-            console.error(error);
-            return null;
+    if (typeof image.pageTitle === 'string') {
+        if (image.pageTitle !== '') {
+            meta.pageTitle = image.pageTitle;
         }
-        const card = document.createElement('article');
-        card.className = 'card';
-
-        const header = document.createElement('header');
-        header.className = 'card__meta';
-        let hasHeader = false;
-        if (meta.host !== '') {
-            const title = document.createElement('p');
-            title.className = 'card__title';
-            title.textContent = meta.host;
-            header.appendChild(title);
-            hasHeader = true;
-        }
-        if (meta.modeLabel !== '') {
-            const badge = document.createElement('span');
-            badge.className = 'card__badge';
-            badge.textContent = meta.modeLabel;
-            header.appendChild(badge);
-            hasHeader = true;
-        }
-        if (hasHeader) card.appendChild(header);
-
-        const media = document.createElement('img');
-        media.className = 'card__media';
-        media.loading = 'lazy';
-        media.decoding = 'async';
-        media.fetchPriority = 'low';
-        media.alt = meta.pageTitle;
-        applySize(media, meta.dimensions);
-        media.src = meta.imageUrl;
-        if (meta.mime !== '') media.dataset.mime = meta.mime;
-        const source = meta.sourceDimensions;
-        if (source.width > 0) media.dataset.sourceWidth = String(source.width);
-        if (source.height > 0) media.dataset.sourceHeight = String(source.height);
-
-        const actions = document.createElement('div');
-        actions.className = 'card__actions';
-        if (meta.pageUrl !== '') actions.appendChild(buildLink(meta.pageUrl, 'View page'));
-        actions.appendChild(buildLink(meta.imageUrl, 'View image'));
-
-        card.appendChild(media);
-        card.appendChild(actions);
-        return card;
     }
-
-    function buildErrorCard(image) {
-        const card = document.createElement('article');
-        card.className = 'card';
-
-        const message = document.createElement('div');
-        message.className = 'card__actions';
-        let prefix = 'Capture failed';
-        if (image.mode) {
-            const modeLabel = formatMode(image.mode);
-            prefix = `Capture failed (${modeLabel})`;
+    if (typeof image.pageUrl === 'string') {
+        if (image.pageUrl !== '') {
+            meta.pageUrl = image.pageUrl;
         }
-        message.textContent = `${prefix}: ${image.error}`;
-
-        card.appendChild(message);
-        return card;
     }
-
-    function createGallery(container) {
-        if (!container) throw new Error('Missing gallery container.');
-
-        let empty = true;
-
-        function showPlaceholder() {
-            container.dataset.empty = '';
-            container.innerHTML = '';
-            container.appendChild(buildPlaceholder());
-            empty = true;
+    if (typeof image.imageUrl === 'string') {
+        if (image.imageUrl !== '') {
+            meta.imageUrl = image.imageUrl;
         }
-
-        function ensureContent() {
-            if (!empty) return;
-            container.removeAttribute('data-empty');
-            container.innerHTML = '';
-            empty = false;
+    }
+    if (typeof image.mime === 'string') {
+        if (image.mime !== '') {
+            meta.mime = image.mime;
         }
-
-        function append(image) {
-            if (!image) return;
-            ensureContent();
-            if (image.status === 'error') {
-                const errorCard = buildErrorCard(image);
-                container.appendChild(errorCard);
-                return;
+    }
+    if (meta.imageUrl === '') {
+        throw new Error('Missing image URL; ensure capture stored.');
+    }
+    return meta;
+}
+const root = window;
+if (!root.ScreenshotGallery) {
+    root.ScreenshotGallery = {};
+}
+const container = document.getElementById('result');
+if (!container) {
+    throw new Error('Missing gallery container #result.');
+}
+const templateCard = document.getElementById('gallery-card-template');
+if (!templateCard) {
+    throw new Error('Missing #gallery-card-template.');
+}
+const templateError = document.getElementById('gallery-error-template');
+if (!templateError) {
+    throw new Error('Missing #gallery-error-template.');
+}
+const templatePlaceholder = document.getElementById('gallery-placeholder-template');
+if (!templatePlaceholder) {
+    throw new Error('Missing #gallery-placeholder-template.');
+}
+let isGalleryEmpty = container.hasAttribute('data-empty');
+function showPlaceholder() {
+    container.setAttribute('data-empty', '');
+    container.innerHTML = '';
+    const clonedNode = templatePlaceholder.content.cloneNode(true);
+    container.appendChild(clonedNode);
+    isGalleryEmpty = true;
+}
+function ensureContent() {
+    if (!isGalleryEmpty) {
+        return;
+    }
+    container.removeAttribute('data-empty');
+    container.innerHTML = '';
+    isGalleryEmpty = false;
+}
+function append(image) {
+    if (!image) {
+        return;
+    }
+    ensureContent();
+    if (image.status === 'error') {
+        const fragment = templateError.content.cloneNode(true);
+        const actionsBox = fragment.querySelector('.card__actions');
+        let modeForError = image.mode;
+        if (!modeForError) {
+            modeForError = 'desktop';
+        }
+        const modeLabel = formatMode(modeForError);
+        actionsBox.textContent = `Capture failed (${modeLabel}): ${image.error}`;
+        container.appendChild(fragment);
+        return;
+    }
+    let meta;
+    try {
+        meta = describeImage(image);
+    } catch (error) {
+        const fragment = templateError.content.cloneNode(true);
+        const actionsBox = fragment.querySelector('.card__actions');
+        let errorMessage = 'Unknown error';
+        if (error) {
+            if (error.message) {
+                errorMessage = error.message;
             }
-            const card = buildImageCard(image);
-            if (!card) return;
-            const batch = document.createDocumentFragment();
-            batch.appendChild(card);
-            container.appendChild(batch);
         }
-
-        function clear() {
-            showPlaceholder();
-        }
-
-        showPlaceholder();
-
-        return { append, clear };
+        actionsBox.textContent = `Capture failed: ${errorMessage}`;
+        container.appendChild(fragment);
+        return;
     }
-
-    const root = window;
-    if (!root.ScreenshotGallery) {
-        root.ScreenshotGallery = {};
+    const fragment = templateCard.content.cloneNode(true);
+    const cardElement = fragment.querySelector('article.card');
+    const headerElement = cardElement.querySelector('.card__meta');
+    const titleElement = cardElement.querySelector('.card__title');
+    const badgeElement = cardElement.querySelector('.card__badge');
+    let hasHeader = false;
+    if (meta.host !== '') {
+        titleElement.textContent = meta.host;
+        hasHeader = true;
+    } else {
+        titleElement.remove();
     }
-    root.ScreenshotGallery.describeImage = describeImage;
-    root.ScreenshotGallery.createGallery = createGallery;
-})();
+    if (meta.modeLabel !== '') {
+        badgeElement.textContent = meta.modeLabel;
+        hasHeader = true;
+    } else {
+        badgeElement.remove();
+    }
+    if (!hasHeader) {
+        headerElement.remove();
+    }
+    const mediaElement = cardElement.querySelector('.card__media');
+    mediaElement.alt = meta.pageTitle;
+    if (meta.dimensions.width > 0) {
+        mediaElement.width = meta.dimensions.width;
+    }
+    if (meta.dimensions.height > 0) {
+        mediaElement.height = meta.dimensions.height;
+    }
+    mediaElement.src = meta.imageUrl;
+    if (meta.mime !== '') {
+        mediaElement.dataset.mime = meta.mime;
+    }
+    if (meta.sourceDimensions.width > 0) {
+        mediaElement.dataset.sourceWidth = String(meta.sourceDimensions.width);
+    }
+    if (meta.sourceDimensions.height > 0) {
+        mediaElement.dataset.sourceHeight = String(meta.sourceDimensions.height);
+    }
+    const actionsElement = cardElement.querySelector('.card__actions');
+    const linkPageElement = actionsElement.querySelector('a[data-action="view-page"]');
+    const linkImageElement = actionsElement.querySelector('a[data-action="view-image"]');
+    if (meta.pageUrl !== '') {
+        linkPageElement.href = meta.pageUrl;
+    } else {
+        linkPageElement.remove();
+    }
+    linkImageElement.href = meta.imageUrl;
+    container.appendChild(fragment);
+}
+function clear() {
+    showPlaceholder();
+}
+const hasNoChildren = !container.children.length;
+if (hasNoChildren) {
+    showPlaceholder();
+}
+if (container.hasAttribute('data-empty')) {
+    showPlaceholder();
+}
+root.ScreenshotGallery.describeImage = describeImage;
+root.ScreenshotGallery.gallery = { append, clear };

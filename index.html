@@ -1,50 +1,56 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>FunkPd Screenshot Pro: Capture Every Page of Your Site Instantly</title>
-    <meta name="description" content="Browser-based QA tool for developers and designers. Capture full-page screenshots of every URL from your sitemap for visual regression testing and design review." />
-    <link rel="canonical" href="https://screenshotpro.funkpd.com/" />
+  <title>FunkPd Screenshot Pro: Capture Every Page of Your Site Instantly</title>
+  <meta name="description" content="Browser-based QA tool for developers and designers. Capture full-page screenshots of every URL from your sitemap for visual regression testing and design review." />
+  <link rel="canonical" href="https://screenshotpro.funkpd.com/" />
 
-    <!-- Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon.png" />
-    <link rel="apple-touch-icon" href="/static/img/favicon.png" />
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon.png" />
+  <link rel="apple-touch-icon" href="/static/img/favicon.png" />
 
-    <!-- Preload + Performance -->
-    <link rel="preload" href="./static/css/style.css" as="style" />
-    <link rel="stylesheet" href="./static/css/style.css" />
-    <link rel="preload" href="./static/js/app-init.js" as="script" />
-    <script src="./static/js/html2canvas.min.js" defer></script>
-    <script src="./static/js/gallery.js" defer></script>
-    <script src="./static/js/ui-utils.js" defer></script>
-    <script src="./static/js/net-fetch.js" defer></script>
-    <script src="./static/js/frame-tools.js" defer></script>
-    <script src="./static/js/capture-core.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.js" defer></script>
-    <script src="./static/js/pdf-export.js" defer></script>
-    <script src="./static/js/pdf-export-test.js" defer></script>
-    <script src="./static/js/app-init.js" defer></script>
-    <script src="./static/js/sidebar.js" defer></script>
-    <script src="./static/js/enforce-zoom.js" defer></script>
+  <!-- Preload + Performance -->
+  <link rel="preload" href="./static/css/style.css" as="style" />
+  <link rel="stylesheet" href="./static/css/style.css" />
 
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://screenshotpro.funkpd.com/" />
-    <meta property="og:title" content="FunkPd Screenshot Pro: Visual Regression Testing Made Simple" />
-    <meta property="og:description" content="Capture every page from your sitemap in one click. Visual QA tool for developers and designers." />
-    <meta property="og:image" content="https://screenshotpro.funkpd.com/static/img/sspro-cover.png" />
+  <!-- Load gallery BEFORE app-init (gallery auto-inits; no createGallery calls) -->
+  <link rel="preload" href="./static/js/gallery.js" as="script" />
+  <script src="./static/js/gallery.js" defer></script>
 
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="FunkPd Screenshot Pro" />
-    <meta name="twitter:description" content="Full-site screenshot generator for QA, audits, and visual testing: runs entirely in your browser." />
-    <meta name="twitter:image" content="https://screenshotpro.funkpd.com/static/img/sspro-cover.png" />
+  <link rel="preload" href="./static/js/app-init.js" as="script" />
+  <link rel="preload" href="./static/js/html2canvas.min.js" as="script" />
+  <link rel="preload" href="./static/js/pdf-lib.min.js" as="script" />
 
-    <!-- Schema.org -->
-    <script type="application/ld+json">
+  <script src="./static/js/html2canvas.min.js" defer></script>
+  <script src="./static/js/app-init.js" defer></script>
+  <script src="./static/js/capture-core.js" defer></script>
+  <script src="./static/js/pdf-lib.min.js" defer></script>
+  <script src="./static/js/net-fetch.js" defer></script>
+  <script src="./static/js/frame-tools.js" defer></script>
+  <script src="./static/js/sidebar.js" defer></script>
+  <script src="./static/js/enforce-zoom.js" defer></script>
+  <script src="./static/js/pdf-export.js" defer></script>
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://screenshotpro.funkpd.com/" />
+  <meta property="og:title" content="FunkPd Screenshot Pro: Visual Regression Testing Made Simple" />
+  <meta property="og:description" content="Capture every page from your sitemap in one click. Visual QA tool for developers and designers." />
+  <meta property="og:image" content="https://screenshotpro.funkpd.com/static/img/sspro-cover.png" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FunkPd Screenshot Pro" />
+  <meta name="twitter:description" content="Full-site screenshot generator for QA, audits, and visual testing: runs entirely in your browser." />
+  <meta name="twitter:image" content="https://screenshotpro.funkpd.com/static/img/sspro-cover.png" />
+
+  <!-- Schema.org -->
+  <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -68,77 +74,103 @@
 </head>
 
 <body>
-    <div class="app-shell" data-sidebar="expanded">
-        <aside id="sidebar" class="sidebar" aria-label="Capture controls">
-            <header class="sidebar__header">
-                <h1 class="sidebar__title">FunkPd Screenshot Pro</h1>
-                <h2 class="sidebar__subtitle">Browser-Based Visual QA Tool</h2>
-                <p class="sidebar__tagline">
-      Capture every page of your website in one click. Perfect for web developers and designers checking for broken widgets, CSS regressions, or layout issues after updates.
-    </p>
-                <p class="sidebar__notice">
-      <strong>Free light mode demo</strong>: full version coming soon.
-      Email <a href="mailto:screenshotpro@funkpd.com">screenshotpro@funkpd.com</a> to get notified.
-    </p>
-                <p class="sidebar__notice">
-      <strong>Pro mode</strong> ($10/month) adds higher resolution, cookie sessions, faster loads, and full-page PDF export for client reviews.
-    </p>
-                <p class="sidebar__notice">
-      All captures happen locally in your browser. No uploads, no tracking: just instant screenshots.
-    </p>
-            </header>
+  <div class="app-shell" data-sidebar="expanded">
+    <aside id="sidebar" class="sidebar" aria-label="Capture controls">
+      <header class="sidebar__header">
+        <h1 class="sidebar__title">FunkPd Screenshot Pro</h1>
+        <h2 class="sidebar__subtitle">Browser-Based Visual QA Tool</h2>
+        <p class="sidebar__tagline">
+          Capture every page of your website in one click. Perfect for web developers and designers checking for broken widgets, CSS regressions, or layout issues after updates.
+        </p>
+        <p class="sidebar__notice">
+          <strong>Free light mode demo</strong>: full version coming soon.
+          Email <a href="mailto:screenshotpro@funkpd.com">screenshotpro@funkpd.com</a> to get notified.
+        </p>
+        <p class="sidebar__notice">
+          <strong>Pro mode</strong> ($10/month) adds higher resolution, cookie sessions, faster loads, and full-page PDF export for client reviews.
+        </p>
+        <p class="sidebar__notice">
+          All captures happen locally in your browser. No uploads, no tracking: just instant screenshots.
+        </p>
+      </header>
 
-            <form id="capture-panel" class="stack stack--md" aria-label="Start capture">
-                <label class="field">
-                    <span class="field__label">Website URL</span>
-                    <input type="url" id="urlInput" placeholder="https://example.com" required />
-                </label>
+      <form id="capture-panel" class="stack stack--md" aria-label="Start capture">
+        <label class="field">
+          <span class="field__label">Website URL</span>
+          <input type="url" id="urlInput" placeholder="https://example.com" required />
+        </label>
 
-                <fieldset class="fieldset">
-                    <legend class="field__label">Viewport Mode</legend>
-                    <div class="segmented" role="radiogroup" aria-label="Viewport mode">
-                        <label class="segmented__option">
-                            <input type="radio" name="mode" value="mobile" />
-                            <span>Mobile</span>
-                        </label>
-                        <label class="segmented__option">
-                            <input type="radio" name="mode" value="tablet" />
-                            <span>Tablet</span>
-                        </label>
-                        <label class="segmented__option">
-                            <input type="radio" name="mode" value="desktop" checked />
-                            <span>Desktop</span>
-                        </label>
-                    </div>
-                </fieldset>
+        <fieldset class="fieldset">
+          <legend class="field__label">Viewport Mode</legend>
+          <div class="segmented" role="radiogroup" aria-label="Viewport mode">
+            <label class="segmented__option">
+              <input type="radio" name="mode" value="mobile" />
+              <span>Mobile</span>
+            </label>
+            <label class="segmented__option">
+              <input type="radio" name="mode" value="tablet" />
+              <span>Tablet</span>
+            </label>
+            <label class="segmented__option">
+              <input type="radio" name="mode" value="desktop" checked />
+              <span>Desktop</span>
+            </label>
+          </div>
+        </fieldset>
 
-                <button id="captureBtn" class="button button--primary">Capture Site Locally</button>
-            </form>
+        <button id="captureBtn" class="button button--primary">Capture Site Locally</button>
+      </form>
 
-            <section class="stack stack--lg" aria-label="Session controls">
-                <div class="cluster">
-                    <button id="clearGalleryBtn" type="button" class="button">Clear Gallery</button>
-                    <button id="downloadPdfBtn" type="button" class="button">Download PDF</button>
-                </div>
-            </section>
+      <section class="stack stack--lg" aria-label="Session controls">
+        <div class="cluster">
+          <button id="clearGalleryBtn" type="button" class="button">Clear Gallery</button>
+          <button id="downloadPdfBtn" type="button" class="button">Download PDF</button>
+        </div>
+      </section>
 
-            <footer class="sidebar__footer">
-                <div class="sidebar__log" role="log" aria-live="polite">
-                    <pre id="sessionStatus" class="sidebar__status">Idle.</pre>
-                </div>
-            </footer>
-        </aside>
+      <footer class="sidebar__footer">
+        <div class="sidebar__log" role="log" aria-live="polite">
+          <pre id="sessionStatus" class="sidebar__status">Idle.</pre>
+        </div>
+      </footer>
+    </aside>
 
-        <main class="gallery" aria-live="polite" aria-label="Screenshot gallery">
-            <div id="result" class="gallery__grid" data-empty>
-                <p class="gallery__placeholder">Screenshots will appear here once captured.</p>
-            </div>
-        </main>
-        <button type="button" id="sidebarToggle" class="button sidebar-toggle" aria-expanded="true" aria-controls="sidebar">
-            <span id="sidebarToggleIcon" class="sidebar-toggle__icon" aria-hidden="true">⟨</span>
-            <span id="sidebarToggleLabel" class="sidebar-toggle__label">Hide controls</span>
-        </button>
-    </div>
+    <main class="gallery" aria-live="polite" aria-label="Screenshot gallery">
+      <div id="result" class="gallery__grid" data-empty>
+        <p class="gallery__placeholder">Screenshots will appear here once captured.</p>
+      </div>
+
+      <!-- Templates used by gallery.js (HTML lives in index, not created in JS) -->
+      <template id="gallery-card-template">
+        <article class="card">
+          <header class="card__meta">
+            <p class="card__title"></p>
+            <span class="card__badge"></span>
+          </header>
+          <img class="card__media" loading="lazy" decoding="async" fetchpriority="low" alt="" />
+          <div class="card__actions">
+            <a data-action="view-page" href="#" target="_blank" rel="noopener noreferrer">View page</a>
+            <a data-action="view-image" href="#" target="_blank" rel="noopener noreferrer">View image</a>
+          </div>
+        </article>
+      </template>
+
+      <template id="gallery-error-template">
+        <article class="card">
+          <div class="card__actions">Capture failed.</div>
+        </article>
+      </template>
+
+      <template id="gallery-placeholder-template">
+        <p class="gallery__placeholder">Screenshots will appear here once captured.</p>
+      </template>
+    </main>
+
+    <button type="button" id="sidebarToggle" class="button sidebar-toggle" aria-expanded="true" aria-controls="sidebar">
+      <span id="sidebarToggleIcon" class="sidebar-toggle__icon" aria-hidden="true">⟨</span>
+      <span id="sidebarToggleLabel" class="sidebar-toggle__label">Hide controls</span>
+    </button>
+  </div>
 </body>
 
 </html>
