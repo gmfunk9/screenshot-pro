@@ -2,18 +2,21 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FunkPd's Screenshot Pro: Light Mode Demo</title>
-    <!-- Preload critical CSS -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>FunkPd Screenshot Pro: Capture Every Page of Your Site Instantly</title>
+    <meta name="description" content="Browser-based QA tool for developers and designers. Capture full-page screenshots of every URL from your sitemap for visual regression testing and design review." />
+    <link rel="canonical" href="https://screenshotpro.funkpd.com/" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon.png" />
+    <link rel="apple-touch-icon" href="/static/img/favicon.png" />
+
+    <!-- Preload + Performance -->
     <link rel="preload" href="./static/css/style.css" as="style" />
-    <link rel="stylesheet" href="./static/css/style.css" media="all" />
-
-    <!-- Preload critical scripts (async loaded later) -->
-    <link rel="preload" href="./static/js/html2canvas.min.js" as="script" />
+    <link rel="stylesheet" href="./static/css/style.css" />
     <link rel="preload" href="./static/js/app-init.js" as="script" />
-
-    <!-- Defer all scripts -->
     <script src="./static/js/html2canvas.min.js" defer></script>
     <script src="./static/js/gallery.js" defer></script>
     <script src="./static/js/ui-utils.js" defer></script>
@@ -22,56 +25,106 @@
     <script src="./static/js/capture-core.js" defer></script>
     <script src="./static/js/app-init.js" defer></script>
     <script src="./static/js/sidebar.js" defer></script>
-    <script src="./static/js/enforce-zoom.js" defer></script></head>
+    <script src="./static/js/enforce-zoom.js" defer></script>
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://screenshotpro.funkpd.com/" />
+    <meta property="og:title" content="FunkPd Screenshot Pro: Visual Regression Testing Made Simple" />
+    <meta property="og:description" content="Capture every page from your sitemap in one click. Visual QA tool for developers and designers." />
+    <meta property="og:image" content="https://screenshotpro.funkpd.com/static/img/sspro-cover.png" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FunkPd Screenshot Pro" />
+    <meta name="twitter:description" content="Full-site screenshot generator for QA, audits, and visual testing: runs entirely in your browser." />
+    <meta name="twitter:image" content="https://screenshotpro.funkpd.com/static/img/sspro-cover.png" />
+
+    <!-- Schema.org -->
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "FunkPd Screenshot Pro",
+    "operatingSystem": "Web",
+    "applicationCategory": "DeveloperApplication",
+    "image": "https://screenshotpro.funkpd.com/static/img/sspro-cover.png",
+    "description": "Browser-based visual QA tool that screenshots every page from a website sitemap for regression testing and design review.",
+    "offers": {
+      "@type": "Offer",
+      "price": "10",
+      "priceCurrency": "USD"
+    },
+    "creator": {
+      "@type": "Organization",
+      "name": "FunkPd",
+      "url": "https://funkpd.com"
+    }
+  }
+  </script>
+</head>
 
 <body>
     <div class="app-shell" data-sidebar="expanded">
         <aside id="sidebar" class="sidebar" aria-label="Capture controls">
             <header class="sidebar__header">
-                <h1 class="sidebar__title">FunkPd's Screenshot Pro</h1>
-                <p class="sidebar__subtitle">Light mode free demo while we build the full release.</p>
-                <p class="sidebar__notice">Email <a href="mailto:screenshotpro@funkpd.com">screenshotpro@funkpd.com</a> if this helps. Pro mode will be $10/month for faster loads, full resolution, and full-size screenshots, cookie login support & more.</p>
-                <p class="sidebar__notice">Captures happen in your browser. Expect long waits on large pages.</p>
-
+                <h1 class="sidebar__title">FunkPd Screenshot Pro</h1>
+                <h2 class="sidebar__subtitle">Browser-Based Visual QA Tool</h2>
+                <p class="sidebar__tagline">
+      Capture every page of your website in one click. Perfect for web developers and designers checking for broken widgets, CSS regressions, or layout issues after updates.
+    </p>
+                <p class="sidebar__notice">
+      <strong>Free light mode demo</strong>: full version coming soon.
+      Email <a href="mailto:screenshotpro@funkpd.com">screenshotpro@funkpd.com</a> to get notified.
+    </p>
+                <p class="sidebar__notice">
+      <strong>Pro mode</strong> ($10/month) adds higher resolution, cookie sessions, faster loads, and full-page PDF export for client reviews.
+    </p>
+                <p class="sidebar__notice">
+      All captures happen locally in your browser. No uploads, no tracking: just instant screenshots.
+    </p>
             </header>
-            <div id="capture-panel" class="stack stack--md">
+
+            <form id="capture-panel" class="stack stack--md" aria-label="Start capture">
                 <label class="field">
-                    <span class="field__label">Page URL</span>
-                    <input type="url" id="urlInput" placeholder="https://example.com">
+                    <span class="field__label">Website URL</span>
+                    <input type="url" id="urlInput" placeholder="https://example.com" required />
                 </label>
 
                 <fieldset class="fieldset">
-                    <legend class="field__label">Viewport mode</legend>
+                    <legend class="field__label">Viewport Mode</legend>
                     <div class="segmented" role="radiogroup" aria-label="Viewport mode">
                         <label class="segmented__option">
-                            <input type="radio" name="mode" value="mobile">
+                            <input type="radio" name="mode" value="mobile" />
                             <span>Mobile</span>
                         </label>
                         <label class="segmented__option">
-                            <input type="radio" name="mode" value="tablet">
+                            <input type="radio" name="mode" value="tablet" />
                             <span>Tablet</span>
                         </label>
                         <label class="segmented__option">
-                            <input type="radio" name="mode" value="desktop" checked>
+                            <input type="radio" name="mode" value="desktop" checked />
                             <span>Desktop</span>
                         </label>
                     </div>
                 </fieldset>
-                <button id="captureBtn" class="button button--primary">Capture page locally</button>
 
-            </div>
+                <button id="captureBtn" class="button button--primary">Capture Site Locally</button>
+            </form>
 
             <section class="stack stack--lg" aria-label="Session controls">
                 <div class="cluster">
-                    <button id="clearGalleryBtn" type="button" class="button">Clear gallery</button>
+                    <button id="clearGalleryBtn" type="button" class="button">Clear Gallery</button>
                 </div>
             </section>
+
             <footer class="sidebar__footer">
                 <div class="sidebar__log" role="log" aria-live="polite">
                     <pre id="sessionStatus" class="sidebar__status">Idle.</pre>
                 </div>
             </footer>
         </aside>
+
         <main class="gallery" aria-live="polite" aria-label="Screenshot gallery">
             <div id="result" class="gallery__grid" data-empty>
                 <p class="gallery__placeholder">Screenshots will appear here once captured.</p>
