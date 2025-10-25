@@ -3,6 +3,13 @@ var FILE_NAME = 'screenshotpro.pdf';
 var MOBILE_SOURCE_WIDTH = 420;
 var TABLET_SOURCE_WIDTH = 768;
 var DESKTOP_SOURCE_WIDTH = 1920;
+function getUsage() {
+    var root = window.ScreenshotGallery;
+    if (!root) return null;
+    var usage = root.usage;
+    if (!usage) return null;
+    return usage;
+}
 var MOBILE_PAGE_WIDTH = 595;
 var TABLET_PAGE_WIDTH = 816;
 var DESKTOP_PAGE_WIDTH = 1240;
@@ -207,18 +214,52 @@ async function handleClick() {
     var images = collectImages();
     if (images.length === 0) {
         console.info('[pdf-export] No gallery images to export.');
+        var usageEmpty = getUsage();
+        if (usageEmpty) {
+            usageEmpty.recordUsage('pdf-export-failure', { message: 'No gallery images available.', pages: 0, durationMs: 0 });
+        }
         return;
     }
     if (!window.PDFLib) {
         console.error('[pdf-export] pdf-lib missing; check CDN.');
+        var usageMissing = getUsage();
+        if (usageMissing) {
+            usageMissing.recordUsage('pdf-export-failure', { message: 'Missing PDF library.', pages: images.length, durationMs: 0 });
+        }
         return;
+    }
+    var usage = getUsage();
+    var exportTimerStarted = false;
+    var exportDuration = 0;
+    var exportError = null;
+    if (usage) {
+        usage.recordUsage('gallery-download', { action: 'pdf-export', count: images.length });
+        usage.recordUsage('pdf-export-start', { pages: images.length });
+        usage.startTimer('pdf-export');
+        exportTimerStarted = true;
     }
     try {
         var result = await buildPdf(images);
         triggerDownload(result.bytes);
         emitExport(result.bytes, result.metrics, images.length);
     } catch (error) {
+        exportError = error;
         console.error('[pdf-export] Export failed: ' + error.message);
+    } finally {
+        if (usage) {
+            if (exportTimerStarted) {
+                exportDuration = usage.stopTimer('pdf-export');
+            }
+            if (exportError) {
+                var message = 'Unknown export error';
+                if (exportError.message) {
+                    message = exportError.message;
+                }
+                usage.recordUsage('pdf-export-failure', { message: message, pages: images.length, durationMs: exportDuration });
+                return;
+            }
+            usage.recordUsage('pdf-export-success', { pages: images.length, durationMs: exportDuration });
+        }
     }
 }
 function init() {
@@ -230,3 +271,4 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, { once: true });
 }
 init();
+

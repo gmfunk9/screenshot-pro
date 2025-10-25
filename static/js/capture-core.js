@@ -8,6 +8,38 @@ const MODE_VIEWPORT_WIDTHS = {
     tablet: 768,
     mobile: 420
 };
+function getUsage() {
+    const root = window.ScreenshotGallery;
+    if (!root) {
+        return null;
+    }
+    const usage = root.usage;
+    if (!usage) {
+        return null;
+    }
+    return usage;
+}
+function hashUrl(value) {
+    if (typeof value !== 'string') {
+        return 'unknown';
+    }
+    const trimmed = value.trim();
+    if (trimmed === '') {
+        return 'empty';
+    }
+    let hash = 0;
+    let index = 0;
+    while (index < trimmed.length) {
+        const code = trimmed.charCodeAt(index);
+        hash = (hash << 5) - hash + code;
+        hash |= 0;
+        index += 1;
+    }
+    if (hash < 0) {
+        hash = hash * -1;
+    }
+    return hash.toString(16);
+}
 function computeCaptureBox(document) {
     const htmlElement = document.documentElement;
     const bodyElement = document.body;
@@ -79,12 +111,24 @@ async function capturePage(captureParams) {
     const url = captureParams.url;
     const mode = captureParams.mode;
     const gallery = captureParams.gallery;
+    const usage = getUsage();
+    const urlHash = hashUrl(url);
+    let timerName = '';
+    let captureDuration = 0;
+    let captureError = null;
+    let captureDimensions = { width: 0, height: 0 };
+    let captureSucceeded = false;
+    if (usage) {
+        timerName = `capture:${urlHash}`;
+        usage.startTimer(timerName);
+    }
     appendStatus(statusElement, `→ Capture ${url} (${mode})`);
-    const htmlContent = await fetchSnapshot(url);
     const baseViewportWidth = MODE_VIEWPORT_WIDTHS[mode] || 1920;
     const iframeWidth = cssWidthForTrue1920(baseViewportWidth);
-    const iframeElement = buildIframe(iframeWidth);
+    let iframeElement = null;
     try {
+        const htmlContent = await fetchSnapshot(url);
+        iframeElement = buildIframe(iframeWidth);
         const iframeDocument = writeHtmlIntoFrame(iframeElement, htmlContent);
         forceFixedCssWidth(iframeDocument, iframeWidth);
         freezeAnimations(iframeDocument);
@@ -95,22 +139,58 @@ async function capturePage(captureParams) {
         blobUrls.add(objectUrl);
         const urlObject = new URL(url);
         const hostName = urlObject.hostname;
+        captureDimensions = {
+            width: previewCanvas.width,
+            height: previewCanvas.height
+        };
         gallery.append({
             host: hostName,
             mode: mode,
             pageUrl: url,
             imageUrl: objectUrl,
             blob: imageBlob,
-            dimensions: {
-                width: previewCanvas.width,
-                height: previewCanvas.height
-            },
-            mime: imageBlob.type
+            dimensions: captureDimensions,
+            mime: imageBlob.type,
+            urlHash: urlHash
         });
         previewCanvas.width = 0;
         previewCanvas.height = 0;
         appendStatus(statusElement, '✓ Done');
+        captureSucceeded = true;
+    } catch (error) {
+        captureError = error;
+        throw error;
     } finally {
-        removeIframe(iframeElement);
+        if (iframeElement) {
+            removeIframe(iframeElement);
+        }
+        if (!usage) {
+            return;
+        }
+        if (timerName !== '') {
+            captureDuration = usage.stopTimer(timerName);
+        }
+        if (captureSucceeded) {
+            usage.recordUsage('capture-success', {
+                mode: mode,
+                durationMs: captureDuration,
+                dimensions: captureDimensions,
+                urlHash: urlHash
+            });
+            return;
+        }
+        let message = 'Unknown capture error';
+        if (captureError) {
+            if (captureError.message) {
+                message = captureError.message;
+            }
+        }
+        usage.recordUsage('capture-error', {
+            mode: mode,
+            durationMs: captureDuration,
+            dimensions: captureDimensions,
+            urlHash: urlHash,
+            message: message
+        });
     }
 }
