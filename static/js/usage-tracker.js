@@ -33,10 +33,7 @@
             timers: snapshotTimers()
         };
     }
-    function dispatch(detail) {
-        if (typeof root.CustomEvent !== 'function') {
-            return;
-        }
+    function encodeDetail(detail) {
         var payload = {
             action: detail.action,
             event: detail.event,
@@ -45,6 +42,47 @@
             payload: detail.payload,
             state: snapshot()
         };
+        return payload;
+    }
+    function sendToServer(payload) {
+        var json = JSON.stringify(payload);
+        if (!json) {
+            return;
+        }
+        var endpoint = 'usage-log.php';
+        var beaconData = null;
+        var hasNavigator = typeof root.navigator === 'object';
+        if (hasNavigator) {
+            var canBeacon = typeof root.navigator.sendBeacon === 'function';
+            if (canBeacon) {
+                beaconData = new Blob([json], { type: 'application/json' });
+                var sent = root.navigator.sendBeacon(endpoint, beaconData);
+                if (sent) {
+                    return;
+                }
+            }
+        }
+        var hasFetch = typeof root.fetch === 'function';
+        if (!hasFetch) {
+            return;
+        }
+        root.fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: json,
+            keepalive: true
+        }).catch(function (error) {
+            console.warn('Usage log send failed.', error);
+        });
+    }
+    function dispatch(detail) {
+        var payload = encodeDetail(detail);
+        sendToServer(payload);
+        if (typeof root.CustomEvent !== 'function') {
+            return;
+        }
         var event = new CustomEvent('screenshotpro:usage', { detail: payload });
         root.dispatchEvent(event);
     }
