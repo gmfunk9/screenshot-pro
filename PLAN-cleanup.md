@@ -85,5 +85,9 @@
 2. Clear any caches/CDN entries so the correct favicon propagates.
 :::
 
-## Testing
-⚠️ Tests not run (not requested).
+12. Add a timeout to let the page rendering 'settle' - also we need some sort of simulated human interaction
+
+:::task-stub{title="Add timeout and human interaction to settle page"}
+1. Find renderPage or wherever the iframe/canvas is made
+2. Add a 2 second timeout, simulate human interaction with mouse/keyboard, wait additional 5 seconds.
+:::
