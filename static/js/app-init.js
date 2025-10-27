@@ -21,19 +21,23 @@ function getUsage() {
 async function handleCapture(urlInput, modes, statusEl, gallery) {
     writeStatus(statusEl, '');
     const usage = getUsage();
-    let sessionTimerStarted = false;
-    let sessionDurationMs = 0;
     let sessionError = null;
     let pageUrls = [];
     const selectedMode = resolveSelectedMode(modes);
+    const submittedUrl = urlInput.value;
     try {
         if (usage) {
-            usage.startTimer('session');
-            sessionTimerStarted = true;
+            usage.recordUsage('capture-submitted', {
+                submittedUrl: submittedUrl,
+                mode: selectedMode
+            });
         }
         pageUrls = await fetchSitemapUrls(urlInput.value, statusEl);
         if (usage) {
-            usage.recordUsage('sitemap-fetched', { urlCount: pageUrls.length });
+            usage.recordUsage('sitemap-fetched', {
+                submittedUrl: submittedUrl,
+                urls: pageUrls
+            });
         }
         for (const pageUrl of pageUrls) {
             await capturePage({
@@ -52,24 +56,22 @@ async function handleCapture(urlInput, modes, statusEl, gallery) {
                     message = error.message;
                 }
             }
-            usage.recordUsage('session-error', { message: message });
+            usage.recordUsage('capture-error', {
+                submittedUrl: submittedUrl,
+                message: message
+            });
         }
         throw error;
     } finally {
-        if (sessionTimerStarted) {
-            if (usage) {
-                sessionDurationMs = usage.stopTimer('session');
-            }
-        }
         if (sessionError) {
             return;
         }
         if (!usage) {
             return;
         }
-        usage.recordUsage('session-complete', {
+        usage.recordUsage('capture-complete', {
+            submittedUrl: submittedUrl,
             pages: pageUrls.length,
-            durationMs: sessionDurationMs,
             mode: selectedMode
         });
     }

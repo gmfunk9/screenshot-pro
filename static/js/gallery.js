@@ -174,17 +174,10 @@ function append(image) {
     const headerElement = cardElement.querySelector('.card__meta');
     const titleElement = cardElement.querySelector('.card__title');
     const badgeElement = cardElement.querySelector('.card__badge');
-    let urlHash = '';
-    if (typeof image.urlHash === 'string') {
-        const trimmedHash = image.urlHash.trim();
-        if (trimmedHash !== '') {
-            urlHash = trimmedHash;
-        }
-    }
-    if (urlHash !== '') {
-        cardElement.dataset.urlHash = urlHash;
-    }
     cardElement.dataset.mode = meta.mode;
+    if (meta.pageUrl !== '') {
+        cardElement.dataset.pageUrl = meta.pageUrl;
+    }
     let hasHeader = false;
     if (meta.host !== '') {
         titleElement.textContent = meta.host;
@@ -267,24 +260,24 @@ function handleGalleryClick(event) {
     if (!cardElement) {
         return;
     }
-    let urlHash = '';
-    if (cardElement.dataset.urlHash) {
-        urlHash = cardElement.dataset.urlHash;
+    let pageUrl = '';
+    if (cardElement.dataset.pageUrl) {
+        pageUrl = cardElement.dataset.pageUrl;
     }
     let mode = 'desktop';
     if (cardElement.dataset.mode) {
         mode = cardElement.dataset.mode;
     }
     if (action === 'view-page') {
-        usage.recordUsage('gallery-view', { action: action, urlHash: urlHash, mode: mode });
+        usage.recordUsage('gallery-view', { action: action, pageUrl: pageUrl, mode: mode });
         return;
     }
     if (action === 'view-image') {
-        usage.recordUsage('gallery-download', { action: action, urlHash: urlHash, mode: mode });
+        usage.recordUsage('gallery-download', { action: action, pageUrl: pageUrl, mode: mode });
         return;
     }
     if (action === 'share') {
-        usage.recordUsage('gallery-share', { action: action, urlHash: urlHash, mode: mode });
+        usage.recordUsage('gallery-share', { action: action, pageUrl: pageUrl, mode: mode });
     }
 }
 const hasNoChildren = !container.children.length;

@@ -38,11 +38,9 @@ if (!is_dir($logDir)) {
 $entry = [
     'timestamp' => gmdate('c'),
     'event' => $event,
-    'action' => $data['action'] ?? null,
-    'timer' => $data['timer'] ?? null,
-    'elapsedMs' => $data['elapsedMs'] ?? null,
-    'payload' => $data['payload'] ?? null,
-    'state' => $data['state'] ?? null
+    'at' => $data['at'] ?? null,
+    'context' => $data['context'] ?? null,
+    'detail' => $data['detail'] ?? null
 ];
 $encoded = json_encode($entry);
 if ($encoded === false) {

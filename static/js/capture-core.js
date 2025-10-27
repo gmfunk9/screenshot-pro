@@ -19,27 +19,6 @@ function getUsage() {
     }
     return usage;
 }
-function hashUrl(value) {
-    if (typeof value !== 'string') {
-        return 'unknown';
-    }
-    const trimmed = value.trim();
-    if (trimmed === '') {
-        return 'empty';
-    }
-    let hash = 0;
-    let index = 0;
-    while (index < trimmed.length) {
-        const code = trimmed.charCodeAt(index);
-        hash = (hash << 5) - hash + code;
-        hash |= 0;
-        index += 1;
-    }
-    if (hash < 0) {
-        hash = hash * -1;
-    }
-    return hash.toString(16);
-}
 function computeCaptureBox(document) {
     const htmlElement = document.documentElement;
     const bodyElement = document.body;
@@ -112,16 +91,9 @@ async function capturePage(captureParams) {
     const mode = captureParams.mode;
     const gallery = captureParams.gallery;
     const usage = getUsage();
-    const urlHash = hashUrl(url);
-    let timerName = '';
-    let captureDuration = 0;
     let captureError = null;
     let captureDimensions = { width: 0, height: 0 };
     let captureSucceeded = false;
-    if (usage) {
-        timerName = `capture:${urlHash}`;
-        usage.startTimer(timerName);
-    }
     appendStatus(statusElement, `→ Capture ${url} (${mode})`);
     const baseViewportWidth = MODE_VIEWPORT_WIDTHS[mode] || 1920;
     const iframeWidth = cssWidthForTrue1920(baseViewportWidth);
@@ -150,8 +122,7 @@ async function capturePage(captureParams) {
             imageUrl: objectUrl,
             blob: imageBlob,
             dimensions: captureDimensions,
-            mime: imageBlob.type,
-            urlHash: urlHash
+            mime: imageBlob.type
         });
         previewCanvas.width = 0;
         previewCanvas.height = 0;
@@ -167,15 +138,10 @@ async function capturePage(captureParams) {
         if (!usage) {
             return;
         }
-        if (timerName !== '') {
-            captureDuration = usage.stopTimer(timerName);
-        }
         if (captureSucceeded) {
-            usage.recordUsage('capture-success', {
-                mode: mode,
-                durationMs: captureDuration,
-                dimensions: captureDimensions,
-                urlHash: urlHash
+            usage.recordUsage('capture-page', {
+                pageUrl: url,
+                mode: mode
             });
             return;
         }
@@ -185,11 +151,9 @@ async function capturePage(captureParams) {
                 message = captureError.message;
             }
         }
-        usage.recordUsage('capture-error', {
+        usage.recordUsage('capture-page-error', {
+            pageUrl: url,
             mode: mode,
-            durationMs: captureDuration,
-            dimensions: captureDimensions,
-            urlHash: urlHash,
             message: message
         });
     }

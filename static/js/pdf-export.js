@@ -216,7 +216,7 @@ async function handleClick() {
         console.info('[pdf-export] No gallery images to export.');
         var usageEmpty = getUsage();
         if (usageEmpty) {
-            usageEmpty.recordUsage('pdf-export-failure', { message: 'No gallery images available.', pages: 0, durationMs: 0 });
+            usageEmpty.recordUsage('pdf-export-empty', { pages: 0 });
         }
         return;
     }
@@ -224,19 +224,15 @@ async function handleClick() {
         console.error('[pdf-export] pdf-lib missing; check CDN.');
         var usageMissing = getUsage();
         if (usageMissing) {
-            usageMissing.recordUsage('pdf-export-failure', { message: 'Missing PDF library.', pages: images.length, durationMs: 0 });
+            usageMissing.recordUsage('pdf-export-missing-lib', { pages: images.length });
         }
         return;
     }
     var usage = getUsage();
-    var exportTimerStarted = false;
-    var exportDuration = 0;
     var exportError = null;
     if (usage) {
-        usage.recordUsage('gallery-download', { action: 'pdf-export', count: images.length });
+        usage.recordUsage('gallery-download', { action: 'pdf-export', pages: images.length });
         usage.recordUsage('pdf-export-start', { pages: images.length });
-        usage.startTimer('pdf-export');
-        exportTimerStarted = true;
     }
     try {
         var result = await buildPdf(images);
@@ -247,18 +243,15 @@ async function handleClick() {
         console.error('[pdf-export] Export failed: ' + error.message);
     } finally {
         if (usage) {
-            if (exportTimerStarted) {
-                exportDuration = usage.stopTimer('pdf-export');
-            }
             if (exportError) {
                 var message = 'Unknown export error';
                 if (exportError.message) {
                     message = exportError.message;
                 }
-                usage.recordUsage('pdf-export-failure', { message: message, pages: images.length, durationMs: exportDuration });
+                usage.recordUsage('pdf-export-error', { message: message, pages: images.length });
                 return;
             }
-            usage.recordUsage('pdf-export-success', { pages: images.length, durationMs: exportDuration });
+            usage.recordUsage('pdf-export-complete', { pages: images.length });
         }
     }
 }

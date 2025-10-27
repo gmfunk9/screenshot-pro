@@ -1,17 +1,6 @@
 const PROXY_ENDPOINT = 'https://testing2.funkpd.shop/cors.php';
 const SITEMAP_ENDPOINT = './sitemap-proxy.php';
 const SITEMAP_PAGE_LIMIT = 10;
-function getUsage() {
-    const root = window.ScreenshotGallery;
-    if (!root) {
-        return null;
-    }
-    const usage = root.usage;
-    if (!usage) {
-        return null;
-    }
-    return usage;
-}
 function dedupeUrls(urls) {
     const seen = new Set();
     const uniqueUrls = [];
@@ -69,9 +58,5 @@ async function fetchSitemapUrls(baseUrl, statusElement) {
     const dedupedList = dedupeUrls(limitedSitemapList);
     const urlCount = dedupedList.length;
     appendStatus(statusElement, `✓ Sitemap ${urlCount} url(s)`);
-    const usage = getUsage();
-    if (usage) {
-        usage.recordUsage('sitemap-candidate', { count: urlCount });
-    }
     return dedupedList;
 }
