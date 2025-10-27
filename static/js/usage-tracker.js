@@ -64,22 +64,31 @@
         };
         return payload;
     }
-    function send(payload) {
-        var json = JSON.stringify(payload);
-        if (!json) {
-            return;
+    function stringifyPayload(payload) {
+        try {
+            return JSON.stringify(payload);
+        } catch (error) {
+            console.warn('Usage payload stringify failed.', error);
+            return '';
         }
+    }
+    function trySendBeacon(json) {
         var nav = root.navigator;
-        if (nav) {
-            var sendBeacon = nav.sendBeacon;
-            if (typeof sendBeacon === 'function') {
-                var blob = new Blob([json], { type: 'application/json' });
-                var sent = sendBeacon(endpoint, blob);
-                if (sent) {
-                    return;
-                }
-            }
+        if (!nav) {
+            return false;
         }
+        var sendBeacon = nav.sendBeacon;
+        if (typeof sendBeacon !== 'function') {
+            return false;
+        }
+        try {
+            return sendBeacon(endpoint, json);
+        } catch (error) {
+            console.warn('Usage sendBeacon failed.', error);
+            return false;
+        }
+    }
+    function tryFetch(json) {
         var fetchFn = root.fetch;
         if (typeof fetchFn !== 'function') {
             return;
@@ -92,6 +101,22 @@
         }).catch(function (error) {
             console.warn('Usage log send failed.', error);
         });
+    }
+    function send(payload) {
+        var json = stringifyPayload(payload);
+        if (typeof json !== 'string') {
+            console.warn('Usage payload JSON missing string.');
+            return;
+        }
+        if (json.length === 0) {
+            console.warn('Usage payload JSON empty.');
+            return;
+        }
+        var sent = trySendBeacon(json);
+        if (sent) {
+            return;
+        }
+        tryFetch(json);
     }
     function recordUsage(eventName, detail) {
         var name = ensureEventName(eventName);
