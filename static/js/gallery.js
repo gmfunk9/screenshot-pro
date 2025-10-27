@@ -1,4 +1,15 @@
 const PLACEHOLDER_TEXT = 'Screenshots will appear here as they finish.';
+function getUsage() {
+    const root = window.ScreenshotGallery;
+    if (!root) {
+        return null;
+    }
+    const usage = root.usage;
+    if (!usage) {
+        return null;
+    }
+    return usage;
+}
 function normalizeModeValue(mode) {
     if (!mode) {
         return 'desktop';
@@ -163,6 +174,10 @@ function append(image) {
     const headerElement = cardElement.querySelector('.card__meta');
     const titleElement = cardElement.querySelector('.card__title');
     const badgeElement = cardElement.querySelector('.card__badge');
+    cardElement.dataset.mode = meta.mode;
+    if (meta.pageUrl !== '') {
+        cardElement.dataset.pageUrl = meta.pageUrl;
+    }
     let hasHeader = false;
     if (meta.host !== '') {
         titleElement.textContent = meta.host;
@@ -208,8 +223,62 @@ function append(image) {
     linkImageElement.href = meta.imageUrl;
     container.appendChild(fragment);
 }
-function clear() {
+function clear(reason) {
     showPlaceholder();
+    const usage = getUsage();
+    if (usage) {
+        let reasonLabel = 'unknown';
+        if (typeof reason === 'string') {
+            const trimmed = reason.trim();
+            if (trimmed !== '') {
+                reasonLabel = trimmed;
+            }
+        }
+        usage.recordUsage('gallery-cleared', { reason: reasonLabel });
+    }
+}
+function handleGalleryClick(event) {
+    const usage = getUsage();
+    if (!usage) {
+        return;
+    }
+    const target = event.target;
+    if (!target) {
+        return;
+    }
+    if (typeof target.getAttribute !== 'function') {
+        return;
+    }
+    const action = target.getAttribute('data-action');
+    if (!action) {
+        return;
+    }
+    if (typeof target.closest !== 'function') {
+        return;
+    }
+    const cardElement = target.closest('article.card');
+    if (!cardElement) {
+        return;
+    }
+    let pageUrl = '';
+    if (cardElement.dataset.pageUrl) {
+        pageUrl = cardElement.dataset.pageUrl;
+    }
+    let mode = 'desktop';
+    if (cardElement.dataset.mode) {
+        mode = cardElement.dataset.mode;
+    }
+    if (action === 'view-page') {
+        usage.recordUsage('gallery-view', { action: action, pageUrl: pageUrl, mode: mode });
+        return;
+    }
+    if (action === 'view-image') {
+        usage.recordUsage('gallery-download', { action: action, pageUrl: pageUrl, mode: mode });
+        return;
+    }
+    if (action === 'share') {
+        usage.recordUsage('gallery-share', { action: action, pageUrl: pageUrl, mode: mode });
+    }
 }
 const hasNoChildren = !container.children.length;
 if (hasNoChildren) {
@@ -218,5 +287,6 @@ if (hasNoChildren) {
 if (container.hasAttribute('data-empty')) {
     showPlaceholder();
 }
+container.addEventListener('click', handleGalleryClick);
 root.ScreenshotGallery.describeImage = describeImage;
 root.ScreenshotGallery.gallery = { append, clear };

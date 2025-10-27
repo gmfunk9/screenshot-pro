@@ -7,16 +7,72 @@ function resolveSelectedMode(inputList) {
     }
     return 'desktop';
 }
+function getUsage() {
+    const root = window.ScreenshotGallery;
+    if (!root) {
+        return null;
+    }
+    const usage = root.usage;
+    if (!usage) {
+        return null;
+    }
+    return usage;
+}
 async function handleCapture(urlInput, modes, statusEl, gallery) {
     writeStatus(statusEl, '');
-    const pageUrls = await fetchSitemapUrls(urlInput.value, statusEl);
+    const usage = getUsage();
+    let sessionError = null;
+    let pageUrls = [];
     const selectedMode = resolveSelectedMode(modes);
-    for (const pageUrl of pageUrls) {
-        await capturePage({
-            url: pageUrl,
-            mode: selectedMode,
-            statusEl: statusEl,
-            gallery: gallery
+    const submittedUrl = urlInput.value;
+    try {
+        if (usage) {
+            usage.recordUsage('capture-submitted', {
+                submittedUrl: submittedUrl,
+                mode: selectedMode
+            });
+        }
+        pageUrls = await fetchSitemapUrls(urlInput.value, statusEl);
+        if (usage) {
+            usage.recordUsage('sitemap-fetched', {
+                submittedUrl: submittedUrl,
+                urls: pageUrls
+            });
+        }
+        for (const pageUrl of pageUrls) {
+            await capturePage({
+                url: pageUrl,
+                mode: selectedMode,
+                statusEl: statusEl,
+                gallery: gallery
+            });
+        }
+    } catch (error) {
+        sessionError = error;
+        if (usage) {
+            let message = 'Unknown session error';
+            if (error) {
+                if (error.message) {
+                    message = error.message;
+                }
+            }
+            usage.recordUsage('capture-error', {
+                submittedUrl: submittedUrl,
+                message: message
+            });
+        }
+        throw error;
+    } finally {
+        if (sessionError) {
+            return;
+        }
+        if (!usage) {
+            return;
+        }
+        usage.recordUsage('capture-complete', {
+            submittedUrl: submittedUrl,
+            pages: pageUrls.length,
+            mode: selectedMode
         });
     }
 }
@@ -72,7 +128,7 @@ function init() {
     };
     clearButton.onclick = () => {
         releaseBlobUrls();
-        screenshotGallery.clear();
+        screenshotGallery.clear('user-click');
         writeStatus(statusElement, 'Gallery cleared.');
     };
 }

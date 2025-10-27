@@ -3,6 +3,13 @@ var FILE_NAME = 'screenshotpro.pdf';
 var MOBILE_SOURCE_WIDTH = 420;
 var TABLET_SOURCE_WIDTH = 768;
 var DESKTOP_SOURCE_WIDTH = 1920;
+function getUsage() {
+    var root = window.ScreenshotGallery;
+    if (!root) return null;
+    var usage = root.usage;
+    if (!usage) return null;
+    return usage;
+}
 var MOBILE_PAGE_WIDTH = 595;
 var TABLET_PAGE_WIDTH = 816;
 var DESKTOP_PAGE_WIDTH = 1240;
@@ -207,18 +214,45 @@ async function handleClick() {
     var images = collectImages();
     if (images.length === 0) {
         console.info('[pdf-export] No gallery images to export.');
+        var usageEmpty = getUsage();
+        if (usageEmpty) {
+            usageEmpty.recordUsage('pdf-export-empty', { pages: 0 });
+        }
         return;
     }
     if (!window.PDFLib) {
         console.error('[pdf-export] pdf-lib missing; check CDN.');
+        var usageMissing = getUsage();
+        if (usageMissing) {
+            usageMissing.recordUsage('pdf-export-missing-lib', { pages: images.length });
+        }
         return;
+    }
+    var usage = getUsage();
+    var exportError = null;
+    if (usage) {
+        usage.recordUsage('gallery-download', { action: 'pdf-export', pages: images.length });
+        usage.recordUsage('pdf-export-start', { pages: images.length });
     }
     try {
         var result = await buildPdf(images);
         triggerDownload(result.bytes);
         emitExport(result.bytes, result.metrics, images.length);
     } catch (error) {
+        exportError = error;
         console.error('[pdf-export] Export failed: ' + error.message);
+    } finally {
+        if (usage) {
+            if (exportError) {
+                var message = 'Unknown export error';
+                if (exportError.message) {
+                    message = exportError.message;
+                }
+                usage.recordUsage('pdf-export-error', { message: message, pages: images.length });
+                return;
+            }
+            usage.recordUsage('pdf-export-complete', { pages: images.length });
+        }
     }
 }
 function init() {
@@ -230,3 +264,4 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, { once: true });
 }
 init();
+

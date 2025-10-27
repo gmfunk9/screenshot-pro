@@ -8,6 +8,17 @@ const MODE_VIEWPORT_WIDTHS = {
     tablet: 768,
     mobile: 420
 };
+function getUsage() {
+    const root = window.ScreenshotGallery;
+    if (!root) {
+        return null;
+    }
+    const usage = root.usage;
+    if (!usage) {
+        return null;
+    }
+    return usage;
+}
 function computeCaptureBox(document) {
     const htmlElement = document.documentElement;
     const bodyElement = document.body;
@@ -79,12 +90,17 @@ async function capturePage(captureParams) {
     const url = captureParams.url;
     const mode = captureParams.mode;
     const gallery = captureParams.gallery;
+    const usage = getUsage();
+    let captureError = null;
+    let captureDimensions = { width: 0, height: 0 };
+    let captureSucceeded = false;
     appendStatus(statusElement, `→ Capture ${url} (${mode})`);
-    const htmlContent = await fetchSnapshot(url);
     const baseViewportWidth = MODE_VIEWPORT_WIDTHS[mode] || 1920;
     const iframeWidth = cssWidthForTrue1920(baseViewportWidth);
-    const iframeElement = buildIframe(iframeWidth);
+    let iframeElement = null;
     try {
+        const htmlContent = await fetchSnapshot(url);
+        iframeElement = buildIframe(iframeWidth);
         const iframeDocument = writeHtmlIntoFrame(iframeElement, htmlContent);
         forceFixedCssWidth(iframeDocument, iframeWidth);
         freezeAnimations(iframeDocument);
@@ -95,22 +111,50 @@ async function capturePage(captureParams) {
         blobUrls.add(objectUrl);
         const urlObject = new URL(url);
         const hostName = urlObject.hostname;
+        captureDimensions = {
+            width: previewCanvas.width,
+            height: previewCanvas.height
+        };
         gallery.append({
             host: hostName,
             mode: mode,
             pageUrl: url,
             imageUrl: objectUrl,
             blob: imageBlob,
-            dimensions: {
-                width: previewCanvas.width,
-                height: previewCanvas.height
-            },
+            dimensions: captureDimensions,
             mime: imageBlob.type
         });
         previewCanvas.width = 0;
         previewCanvas.height = 0;
         appendStatus(statusElement, '✓ Done');
+        captureSucceeded = true;
+    } catch (error) {
+        captureError = error;
+        throw error;
     } finally {
-        removeIframe(iframeElement);
+        if (iframeElement) {
+            removeIframe(iframeElement);
+        }
+        if (!usage) {
+            return;
+        }
+        if (captureSucceeded) {
+            usage.recordUsage('capture-page', {
+                pageUrl: url,
+                mode: mode
+            });
+            return;
+        }
+        let message = 'Unknown capture error';
+        if (captureError) {
+            if (captureError.message) {
+                message = captureError.message;
+            }
+        }
+        usage.recordUsage('capture-page-error', {
+            pageUrl: url,
+            mode: mode,
+            message: message
+        });
     }
 }

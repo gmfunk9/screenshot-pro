@@ -1,6 +1,25 @@
 const PROXY_ENDPOINT = 'https://testing2.funkpd.shop/cors.php';
 const SITEMAP_ENDPOINT = './sitemap-proxy.php';
 const SITEMAP_PAGE_LIMIT = 10;
+function dedupeUrls(urls) {
+    const seen = new Set();
+    const uniqueUrls = [];
+    for (const item of urls) {
+        if (typeof item !== 'string') {
+            continue;
+        }
+        const trimmed = item.trim();
+        if (trimmed === '') {
+            continue;
+        }
+        if (seen.has(trimmed)) {
+            continue;
+        }
+        seen.add(trimmed);
+        uniqueUrls.push(trimmed);
+    }
+    return uniqueUrls;
+}
 function createProxyUrl(targetUrl) {
     const encodedUrl = encodeURIComponent(targetUrl);
     const proxyUrl = `${PROXY_ENDPOINT}?url=${encodedUrl}`;
@@ -36,7 +55,8 @@ async function fetchSitemapUrls(baseUrl, statusElement) {
     if (sitemapList.length > SITEMAP_PAGE_LIMIT) {
         limitedSitemapList = sitemapList.slice(0, SITEMAP_PAGE_LIMIT);
     }
-    const urlCount = limitedSitemapList.length;
+    const dedupedList = dedupeUrls(limitedSitemapList);
+    const urlCount = dedupedList.length;
     appendStatus(statusElement, `✓ Sitemap ${urlCount} url(s)`);
-    return limitedSitemapList;
+    return dedupedList;
 }

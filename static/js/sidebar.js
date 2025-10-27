@@ -1,3 +1,14 @@
+function getUsage() {
+    const root = window.ScreenshotGallery;
+    if (!root) {
+        return null;
+    }
+    const usage = root.usage;
+    if (!usage) {
+        return null;
+    }
+    return usage;
+}
 function setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, nextState) {
     appShell.dataset.sidebar = nextState;
     const isExpanded = nextState === 'expanded';
@@ -35,6 +46,15 @@ function initSidebar(appShell, sidebar, toggleBtn, labelEl, iconEl) {
         }
         currentState = newState;
         setSidebarState(appShell, sidebar, toggleBtn, labelEl, iconEl, currentState);
+        const usage = getUsage();
+        if (!usage) {
+            return;
+        }
+        let stateLabel = 'closed';
+        if (currentState === 'expanded') {
+            stateLabel = 'open';
+        }
+        usage.recordUsage('sidebar-toggle', { state: stateLabel });
     });
 }
 initSidebar(
