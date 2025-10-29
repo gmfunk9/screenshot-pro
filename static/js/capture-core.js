@@ -19,6 +19,51 @@ function getUsage() {
     }
     return usage;
 }
+
+function waitForDelay(milliseconds) {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+function simulateHumanInteraction(targetDocument) {
+    if (!targetDocument) {
+        return;
+    }
+    let targetElement = targetDocument.body;
+    if (!targetElement) {
+        targetElement = targetDocument.documentElement;
+    }
+    if (!targetElement) {
+        return;
+    }
+    const mouseMoveEvent = new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: 5,
+        clientY: 5
+    });
+    targetElement.dispatchEvent(mouseMoveEvent);
+    const mouseDownEvent = new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: 5,
+        clientY: 5
+    });
+    targetElement.dispatchEvent(mouseDownEvent);
+    const mouseUpEvent = new MouseEvent('mouseup', {
+        bubbles: true,
+        clientX: 5,
+        clientY: 5
+    });
+    targetElement.dispatchEvent(mouseUpEvent);
+    const keyDownEvent = new KeyboardEvent('keydown', {
+        bubbles: true,
+        key: 'Tab'
+    });
+    targetElement.dispatchEvent(keyDownEvent);
+    const keyUpEvent = new KeyboardEvent('keyup', {
+        bubbles: true,
+        key: 'Tab'
+    });
+    targetElement.dispatchEvent(keyUpEvent);
+}
 function computeCaptureBox(document) {
     const htmlElement = document.documentElement;
     const bodyElement = document.body;
@@ -104,6 +149,9 @@ async function capturePage(captureParams) {
         const iframeDocument = writeHtmlIntoFrame(iframeElement, htmlContent);
         forceFixedCssWidth(iframeDocument, iframeWidth);
         freezeAnimations(iframeDocument);
+        await waitForDelay(2000);
+        simulateHumanInteraction(iframeDocument);
+        await waitForDelay(5000);
         await new Promise(resolveFunction => requestAnimationFrame(resolveFunction));
         const previewCanvas = await renderPage(iframeDocument, iframeWidth);
         const imageBlob = await exportCanvasToBlob(previewCanvas);
