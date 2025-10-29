@@ -1,4 +1,4 @@
-const PROXY_ENDPOINT = 'http://screenshotpro.funkpd.com/cors.php';
+const PROXY_ENDPOINT = 'https://testing2.funkpd.shop/cors.php';
 const SITEMAP_ENDPOINT = './sitemap-proxy.php';
 const SITEMAP_PAGE_LIMIT = 10;
 function dedupeUrls(urls) {

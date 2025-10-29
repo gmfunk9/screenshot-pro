@@ -28,11 +28,18 @@ function buildIframe(targetCssWidth) {
     iframeElement.style.left = '0';
     iframeElement.style.top = '0';
     iframeElement.style.pointerEvents = 'none';
+
     iframeElement.setAttribute('width', String(targetCssWidth));
     iframeElement.setAttribute('height', '100');
+
+    // *** CRITICAL ***
+    // allow same-origin and script execution inside Blob frame
+    iframeElement.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+
     document.body.appendChild(iframeElement);
     return iframeElement;
 }
+
 function removeIframe(iframeElement) {
     if (!iframeElement) {
         return;
@@ -42,16 +49,20 @@ function removeIframe(iframeElement) {
         parentNode.removeChild(iframeElement);
     }
 }
-function writeHtmlIntoFrame(iframeElement, htmlContent) {
-    const frameDocument = iframeElement.contentDocument;
-    if (!frameDocument) {
-        throw new Error('Missing frame document');
-    }
-    frameDocument.open();
-    frameDocument.write(htmlContent);
-    frameDocument.close();
-    return frameDocument;
+function writeHtmlIntoFrame(iframe, htmlContent) {
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+    iframe.src = blobUrl;
+    return new Promise(resolve => {
+        iframe.onload = () => {
+            const doc = iframe.contentDocument;
+            resolve(doc);
+            // optional: revoke later to free memory
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        };
+    });
 }
+
 function freezeAnimations(document) {
     const styleElement = document.createElement('style');
     styleElement.textContent = '*,*::before,*::after{animation:none!important;transition:none!important}';
