@@ -29,15 +29,9 @@ function appendStatus(target, message) {
     target.scrollTop = target.scrollHeight;
 }
 
-function getVisualZoom() {
-    const hasVisualViewport = !!(window.visualViewport && typeof window.visualViewport.scale === 'number');
-    if (!hasVisualViewport) return 1;
-    return window.visualViewport.scale || 1;
-}
-
 function cssWidthForTrue1920(baseWidth = 1920) {
-    const zoom = getVisualZoom();
-    return zoom === 0 ? baseWidth : Math.round(baseWidth / zoom);
+    if (!baseWidth) return 1920;
+    return baseWidth;
 }
 
 function buildIframe(targetCssWidth) {

@@ -1,21 +1,8 @@
-function getVisualZoom() {
-    const hasVisualViewport = !!(window.visualViewport && typeof window.visualViewport.scale === 'number');
-    if (!hasVisualViewport) {
-        return 1;
-    }
-    const viewportScale = window.visualViewport.scale;
-    if (viewportScale) {
-        return viewportScale;
-    }
-    return 1;
-}
 function cssWidthForTrue1920(baseWidth = 1920) {
-    const zoomFactor = getVisualZoom();
-    if (zoomFactor === 0) {
-        return baseWidth;
+    if (!baseWidth) {
+        return 1920;
     }
-    const calculatedCssWidth = Math.round(baseWidth / zoomFactor);
-    return calculatedCssWidth;
+    return baseWidth;
 }
 function buildIframe(targetCssWidth) {
     const iframeElement = document.createElement('iframe');

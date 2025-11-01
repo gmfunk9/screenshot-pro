@@ -1,8 +1,10 @@
 const ZOOM_WARNING_MODAL_ID = 'zoom-warning-modal';
 const ZOOM_WARNING_TEXT_ID = 'zoom-warning-text';
 const ZOOM_WARNING_DISMISS_ID = 'zoom-warning-dismiss';
+const ZOOM_WARNING_SET_ID = 'zoom-warning-set';
 const CHECK_INTERVAL_MS = 500;
 const EXPECTED_ZOOM_PERCENT = 100;
+const GLOBAL_ZOOM_CORRECTION_KEY = '__SCREENSHOT_ENFORCED_ZOOM_RATIO__';
 const MODAL_STYLE_PROPERTIES = {
     position: 'fixed',
     top: '50%',
@@ -19,7 +21,16 @@ const MODAL_STYLE_PROPERTIES = {
     display: 'none',
     boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
 };
+const BUTTON_STYLE_PROPERTIES = {
+    background: '#fff',
+    color: '#d90000',
+    border: 'none',
+    borderRadius: '4px',
+    padding: '8px 16px',
+    cursor: 'pointer'
+};
 let dismissedZoomPercent = null;
+let correctedZoomRatio = null;
 function enforceZoomWatcher() {
     let zoomWarningModal = document.getElementById(ZOOM_WARNING_MODAL_ID);
     if (!zoomWarningModal) {
@@ -38,19 +49,26 @@ function createZoomWarningModal() {
     messageElement.id = ZOOM_WARNING_TEXT_ID;
     messageElement.style.marginBottom = '12px';
     modalElement.appendChild(messageElement);
-    const dismissButton = document.createElement('button');
-    dismissButton.type = 'button';
-    dismissButton.id = ZOOM_WARNING_DISMISS_ID;
-    dismissButton.textContent = 'Dismiss';
-    dismissButton.style.background = '#fff';
-    dismissButton.style.color = '#d90000';
-    dismissButton.style.border = 'none';
-    dismissButton.style.borderRadius = '4px';
-    dismissButton.style.padding = '8px 16px';
-    dismissButton.style.cursor = 'pointer';
+    const actionsContainer = document.createElement('div');
+    actionsContainer.style.display = 'flex';
+    actionsContainer.style.gap = '8px';
+    actionsContainer.style.justifyContent = 'center';
+    const setButton = createModalButton(ZOOM_WARNING_SET_ID, 'Set zoom to 100%');
+    setButton.addEventListener('click', handleSetZoomClick);
+    actionsContainer.appendChild(setButton);
+    const dismissButton = createModalButton(ZOOM_WARNING_DISMISS_ID, 'Dismiss');
     dismissButton.addEventListener('click', handleDismissClick);
-    modalElement.appendChild(dismissButton);
+    actionsContainer.appendChild(dismissButton);
+    modalElement.appendChild(actionsContainer);
     return modalElement;
+}
+function createModalButton(id, text) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = id;
+    button.textContent = text;
+    Object.assign(button.style, BUTTON_STYLE_PROPERTIES);
+    return button;
 }
 function getZoomPercent() {
     const devicePixelRatio = window.devicePixelRatio;
@@ -69,6 +87,7 @@ function checkZoomLevel() {
     const currentZoom = getZoomPercent();
     const isExpectedZoom = currentZoom === EXPECTED_ZOOM_PERCENT;
     if (isExpectedZoom) {
+        clearZoomCorrection();
         resetDismissedZoom();
         hideModal();
         return;
@@ -81,7 +100,7 @@ function checkZoomLevel() {
     showModal();
 }
 function setWarningMessage(zoomValue) {
-    const warningText = `⚠️ Browser zoom is ${zoomValue}%. Set zoom to 100% for accurate captures.`;
+    const warningText = `⚠️ Browser zoom is ${zoomValue}%. Set zoom to 100% for accurate captures. This is a desktop app, we can't support mobile use at this time. Expect broken layouts if you're using a mobile device, or not at 100% zoom.`;
     const warningMessage = document.getElementById(ZOOM_WARNING_TEXT_ID);
     if (!warningMessage) {
         return;
@@ -102,7 +121,54 @@ function handleDismissClick() {
     dismissedZoomPercent = currentZoom;
     hideModal();
 }
+function handleSetZoomClick() {
+    const currentZoom = getZoomPercent();
+    applyZoomCorrection(currentZoom);
+    dismissedZoomPercent = currentZoom;
+    hideModal();
+}
+function applyZoomCorrection(currentZoom) {
+    const htmlElement = document.documentElement;
+    if (!htmlElement) {
+        return;
+    }
+    if (currentZoom === 0) {
+        return;
+    }
+    if (currentZoom === EXPECTED_ZOOM_PERCENT) {
+        clearZoomCorrection();
+        return;
+    }
+    const zoomRatio = EXPECTED_ZOOM_PERCENT / currentZoom;
+    htmlElement.style.zoom = `${zoomRatio}`;
+    const bodyElement = document.body;
+    if (bodyElement) {
+        bodyElement.style.zoom = `${zoomRatio}`;
+    }
+    correctedZoomRatio = zoomRatio;
+    publishZoomCorrection();
+}
+function clearZoomCorrection() {
+    const htmlElement = document.documentElement;
+    if (!htmlElement) {
+        return;
+    }
+    if (correctedZoomRatio === null) {
+        return;
+    }
+    htmlElement.style.zoom = '';
+    const bodyElement = document.body;
+    if (bodyElement) {
+        bodyElement.style.zoom = '';
+    }
+    correctedZoomRatio = null;
+    publishZoomCorrection();
+}
 function resetDismissedZoom() {
     dismissedZoomPercent = null;
 }
+function publishZoomCorrection() {
+    window[GLOBAL_ZOOM_CORRECTION_KEY] = correctedZoomRatio;
+}
+publishZoomCorrection();
 enforceZoomWatcher();
