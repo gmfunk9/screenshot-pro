@@ -4,6 +4,7 @@ const ZOOM_WARNING_DISMISS_ID = 'zoom-warning-dismiss';
 const ZOOM_WARNING_SET_ID = 'zoom-warning-set';
 const CHECK_INTERVAL_MS = 500;
 const EXPECTED_ZOOM_PERCENT = 100;
+const GLOBAL_ZOOM_CORRECTION_KEY = '__SCREENSHOT_ENFORCED_ZOOM_RATIO__';
 const MODAL_STYLE_PROPERTIES = {
     position: 'fixed',
     top: '50%',
@@ -145,6 +146,7 @@ function applyZoomCorrection(currentZoom) {
         bodyElement.style.zoom = `${zoomRatio}`;
     }
     correctedZoomRatio = zoomRatio;
+    publishZoomCorrection();
 }
 function clearZoomCorrection() {
     const htmlElement = document.documentElement;
@@ -160,8 +162,13 @@ function clearZoomCorrection() {
         bodyElement.style.zoom = '';
     }
     correctedZoomRatio = null;
+    publishZoomCorrection();
 }
 function resetDismissedZoom() {
     dismissedZoomPercent = null;
 }
+function publishZoomCorrection() {
+    window[GLOBAL_ZOOM_CORRECTION_KEY] = correctedZoomRatio;
+}
+publishZoomCorrection();
 enforceZoomWatcher();
