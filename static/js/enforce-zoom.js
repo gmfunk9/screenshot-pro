@@ -100,7 +100,7 @@ function checkZoomLevel() {
     showModal();
 }
 function setWarningMessage(zoomValue) {
-    const warningText = `⚠️ Browser zoom is ${zoomValue}%. Set zoom to 100% for accurate captures.`;
+    const warningText = `⚠️ Browser zoom is ${zoomValue}%. Set zoom to 100% for accurate captures. This is a desktop app, we can't support mobile use at this time. Expect broken layouts if you're using a mobile device, or not at 100% zoom.`;
     const warningMessage = document.getElementById(ZOOM_WARNING_TEXT_ID);
     if (!warningMessage) {
         return;
