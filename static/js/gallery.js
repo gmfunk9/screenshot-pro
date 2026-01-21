@@ -96,6 +96,9 @@ function buildStatusCard(payload) {
     if (payload.pageUrl) {
         card.dataset.url = payload.pageUrl;
     }
+    if (payload.mode) {
+        card.dataset.mode = payload.mode;
+    }
 
     const header = document.createElement('header');
     header.className = 'card__meta';
@@ -123,10 +126,13 @@ function buildStatusCard(payload) {
     return card;
 }
 
-function findCard(container, pageUrl) {
+function findCard(container, pageUrl, mode) {
     if (!pageUrl) return null;
     const escape = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape : (value) => value.replace(/"/g, '\\"');
-    return container.querySelector(`[data-url="${escape(pageUrl)}"]`);
+    const urlValue = escape(pageUrl);
+    if (!mode) return container.querySelector(`[data-url="${urlValue}"]`);
+    const modeValue = escape(mode);
+    return container.querySelector(`[data-url="${urlValue}"][data-mode="${modeValue}"]`);
 }
 
 export function createGallery(container) {
@@ -151,9 +157,11 @@ export function createGallery(container) {
     function append(image) {
         if (!image) return;
         ensureContent();
-        const existing = findCard(container, image.pageUrl);
+        const existing = findCard(container, image.pageUrl, image.mode);
         if (image.status === 'error') {
             const errorCard = buildErrorCard(image);
+            if (image.pageUrl) errorCard.dataset.url = image.pageUrl;
+            if (image.mode) errorCard.dataset.mode = image.mode;
             if (existing) {
                 existing.replaceWith(errorCard);
             } else {
@@ -165,6 +173,9 @@ export function createGallery(container) {
         if (image.pageUrl) {
             card.dataset.url = image.pageUrl;
         }
+        if (image.mode) {
+            card.dataset.mode = image.mode;
+        }
         if (existing) {
             existing.replaceWith(card);
         } else {
@@ -175,7 +186,7 @@ export function createGallery(container) {
     function updateStatus(payload) {
         if (!payload || !payload.pageUrl) return;
         ensureContent();
-        const existing = findCard(container, payload.pageUrl);
+        const existing = findCard(container, payload.pageUrl, payload.mode);
         if (existing && !existing.classList.contains('card--status')) {
             return;
         }

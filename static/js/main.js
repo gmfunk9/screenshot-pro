@@ -189,6 +189,7 @@ function init() {
         const lower = value.toLowerCase();
         if (lower === 'mobile') return 'Mobile';
         if (lower === 'tablet') return 'Tablet';
+        if (lower === 'all') return 'All';
         return 'Desktop';
     }
 

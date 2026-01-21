@@ -58,7 +58,8 @@ function normalizeMode(mode) {
     if (lower === 'mobile') return 'mobile';
     if (lower === 'tablet') return 'tablet';
     if (lower === 'desktop') return 'desktop';
-    throw new Error('Unsupported mode; pick mobile, tablet, or desktop.');
+    if (lower === 'all') return 'all';
+    throw new Error('Unsupported mode; pick mobile, tablet, desktop, or all.');
 }
 
 export async function requestCapture(payload) {

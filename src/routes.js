@@ -24,52 +24,64 @@ function broadcastStatus(message, meta = {}) {
     broadcast({ type: 'status', message, ...meta });
 }
 
-async function processCapture(urls, cookie, mode) {
-    logger.info('routes', 'Processing capture batch', { count: urls.length, mode });
+function expandTasks(urls, mode) {
+    const modes = mode === 'all' ? ['desktop', 'tablet', 'mobile'] : [mode];
     const tasks = [];
+    for (const url of urls) {
+        for (const item of modes) {
+            tasks.push({ url, mode: item });
+        }
+    }
+    return tasks;
+}
+
+async function processCapture(urls, cookie, mode) {
+    const tasks = expandTasks(urls, mode);
+    logger.info('routes', 'Processing capture batch', { count: tasks.length, mode });
+    const jobs = [];
     let index = 0;
-    for (const target of urls) {
+    for (const task of tasks) {
         index += 1;
         const position = index;
-        broadcastStatus(`Queued ${position}/${urls.length}`, { step: 'queued', index: position, total: urls.length, pageUrl: target, mode });
+        broadcastStatus(`Queued ${position}/${tasks.length}`, { step: 'queued', index: position, total: tasks.length, pageUrl: task.url, mode: task.mode });
         const job = enqueue(async () => {
             try {
                 const startedAt = Date.now();
-                broadcastStatus(`Capturing ${position}/${urls.length}`, { step: 'capturing', index: position, total: urls.length, pageUrl: target, mode });
-                logger.info('routes', 'Capturing URL', { url: target, index: position, total: urls.length, mode });
-                const imageData = await captureScreenshot(target, cookie, mode);
+                broadcastStatus(`Capturing ${position}/${tasks.length}`, { step: 'capturing', index: position, total: tasks.length, pageUrl: task.url, mode: task.mode });
+                logger.info('routes', 'Capturing URL', { url: task.url, index: position, total: tasks.length, mode: task.mode });
+                const imageData = await captureScreenshot(task.url, cookie, task.mode);
                 const elapsed = Math.round((Date.now() - startedAt) / 1000);
                 if (imageData && imageData.status === 'captured') {
-                    broadcastStatus(`Captured ${position}/${urls.length} (${elapsed}s)`, { step: 'captured', index: position, total: urls.length, pageUrl: target, seconds: elapsed, mode });
+                    broadcastStatus(`Captured ${position}/${tasks.length} (${elapsed}s)`, { step: 'captured', index: position, total: tasks.length, pageUrl: task.url, seconds: elapsed, mode: task.mode });
                 } else if (imageData && imageData.status === 'exists') {
-                    broadcastStatus(`Exists ${position}/${urls.length} (${elapsed}s)`, { step: 'exists', index: position, total: urls.length, pageUrl: target, seconds: elapsed, mode });
+                    broadcastStatus(`Exists ${position}/${tasks.length} (${elapsed}s)`, { step: 'exists', index: position, total: tasks.length, pageUrl: task.url, seconds: elapsed, mode: task.mode });
                 }
-                logger.info('routes', 'Capture finished', { url: target, status: imageData?.status || 'unknown', seconds: elapsed });
+                logger.info('routes', 'Capture finished', { url: task.url, status: imageData?.status || 'unknown', seconds: elapsed, mode: task.mode });
                 broadcast({ imageData });
                 return imageData;
             } catch (error) {
-                logger.error('routes', 'Capture error', { url: target, error: error.message });
+                logger.error('routes', 'Capture error', { url: task.url, error: error.message, mode: task.mode });
                 const failure = {
                     status: 'error',
-                    host: new URL(target).hostname,
-                    pageUrl: target,
-                    mode,
+                    host: new URL(task.url).hostname,
+                    pageUrl: task.url,
+                    mode: task.mode,
                     error: error.message
                 };
-                broadcastStatus(`Failed ${position}/${urls.length}`, { step: 'failed', index: position, total: urls.length, pageUrl: target, error: error.message, mode });
+                broadcastStatus(`Failed ${position}/${tasks.length}`, { step: 'failed', index: position, total: tasks.length, pageUrl: task.url, error: error.message, mode: task.mode });
                 broadcast({ imageData: failure });
                 return failure;
             }
         });
-        tasks.push(job);
+        jobs.push(job);
     }
-    return Promise.all(tasks);
+    return Promise.all(jobs);
 }
 
 function normalizeMode(input) {
     if (!input) return 'desktop';
     const value = String(input).toLowerCase();
-    const allowed = ['mobile', 'tablet', 'desktop'];
+    const allowed = ['mobile', 'tablet', 'desktop', 'all'];
     for (const mode of allowed) {
         if (mode === value) return value;
     }
@@ -97,7 +109,7 @@ router.post('/capture', async (req, res) => {
     }
     const mode = normalizeMode(modeInput);
     if (!mode) {
-        res.status(400).json({ error: 'Unsupported mode; use mobile, tablet, or desktop.' });
+        res.status(400).json({ error: 'Unsupported mode; use mobile, tablet, desktop, or all.' });
         logger.warn('routes', 'Unsupported mode', { mode: modeInput });
         return;
     }
