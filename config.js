@@ -4,7 +4,7 @@ const BASE_DIR = path.dirname(new URL(import.meta.url).pathname);
 
 const config = {
     server: {
-        port: 3200
+        port: Number(process.env.SSPRO_PORT || process.env.PORT || 3216)
     },
     puppeteer: {
         headless: true,

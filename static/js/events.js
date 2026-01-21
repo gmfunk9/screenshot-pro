@@ -2,6 +2,8 @@ export function bindUi(options) {
     if (!options) throw new Error('Missing UI options.');
     const form = options.form;
     const urlInput = options.urlInput;
+    const urlListInput = options.urlListInput;
+    const inputModeInputs = options.inputModeInputs;
     const cookieInput = options.cookieInput;
     const modeInputs = options.modeInputs;
     const newSessionBtn = options.newSessionBtn;
@@ -9,10 +11,14 @@ export function bindUi(options) {
     const clearDiskBtn = options.clearDiskBtn;
     const exportPdfBtn = options.exportPdfBtn;
     const savePageBtn = options.savePageBtn;
+    const restartServerBtn = options.restartServerBtn;
     const sidebarToggleBtn = options.sidebarToggleBtn;
 
     if (!form) throw new Error('Missing capture form.');
     if (!urlInput) throw new Error('Missing URL input.');
+    if (!urlListInput) throw new Error('Missing URL list input.');
+    if (!inputModeInputs) throw new Error('Missing input mode options.');
+    if (!inputModeInputs.length) throw new Error('Missing input mode options.');
     if (!cookieInput) throw new Error('Missing cookie input.');
     if (!modeInputs) throw new Error('Missing mode inputs.');
     if (!modeInputs.length) throw new Error('Missing mode options.');
@@ -21,6 +27,7 @@ export function bindUi(options) {
     if (!clearDiskBtn) throw new Error('Missing clear disk button.');
     if (!exportPdfBtn) throw new Error('Missing export PDF button.');
     if (!savePageBtn) throw new Error('Missing save page button.');
+    if (!restartServerBtn) throw new Error('Missing restart server button.');
     if (!sidebarToggleBtn) throw new Error('Missing sidebar toggle button.');
 
     function notifyValidation(message) {
@@ -43,8 +50,46 @@ export function bindUi(options) {
         return 'desktop';
     }
 
+    function resolveInputMode() {
+        for (const input of inputModeInputs) {
+            if (!input) continue;
+            if (input.checked) return input.value;
+        }
+        return 'sitemap';
+    }
+
+    function collectUrls() {
+        const raw = urlListInput.value || '';
+        return raw
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
+    }
+
     async function handleCapture(event) {
         event.preventDefault();
+        const inputMode = resolveInputMode();
+        if (inputMode === 'manual') {
+            const urls = collectUrls();
+            if (!urls.length) {
+                notifyValidation('Provide at least one URL.');
+                return;
+            }
+            const payload = {
+                url: urls[0],
+                urls,
+                cookie: cookieInput.value.trim(),
+                mode: resolveMode()
+            };
+            const handler = options.onCapture;
+            if (!handler) return;
+            try {
+                await handler(payload);
+            } catch (error) {
+                notifyError(error);
+            }
+            return;
+        }
         const rawUrl = urlInput.value.trim();
         if (!rawUrl) {
             notifyValidation('Provide a URL to capture.');
@@ -110,6 +155,16 @@ export function bindUi(options) {
         }
     }
 
+    async function handleRestartServer() {
+        const handler = options.onRestartServer;
+        if (!handler) return;
+        try {
+            await handler();
+        } catch (error) {
+            notifyError(error);
+        }
+    }
+
     function handleSidebarToggle() {
         const handler = options.onToggleSidebar;
         if (!handler) return;
@@ -122,5 +177,6 @@ export function bindUi(options) {
     clearDiskBtn.addEventListener('click', handleClearDisk);
     exportPdfBtn.addEventListener('click', handleExportPdf);
     savePageBtn.addEventListener('click', handleSavePage);
+    restartServerBtn.addEventListener('click', handleRestartServer);
     sidebarToggleBtn.addEventListener('click', handleSidebarToggle);
 }

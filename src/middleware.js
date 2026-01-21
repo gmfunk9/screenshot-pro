@@ -1,13 +1,14 @@
 import { ERROR_MESSAGES } from './constants.js';
+import { logger } from './logger.js';
 
 export function requestLogger(req, _res, next) {
     const time = new Date().toISOString();
-    console.log(`[${time}] ${req.method} ${req.originalUrl}`);
+    logger.info('http', `${req.method} ${req.originalUrl}`, { time });
     next();
 }
 
 export function errorHandler(err, _req, res, _next) {
-    console.error(err.stack);
+    logger.error('http', 'Unhandled error', { error: err.message });
     res.status(500).json({ error: ERROR_MESSAGES.GENERIC_ERROR });
 }
 
@@ -17,4 +18,3 @@ export function corsHeaders(_req, res, next) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   next();
 }
-

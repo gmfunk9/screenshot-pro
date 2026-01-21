@@ -68,10 +68,11 @@ export async function requestCapture(payload) {
     let cookie = '';
     if (payload.cookie) cookie = payload.cookie;
     const mode = normalizeMode(payload.mode);
+    const urls = Array.isArray(payload.urls) ? payload.urls : null;
     const response = await fetch('/capture', {
         method: 'POST',
         headers: JSON_HEADERS,
-        body: JSON.stringify({ url, cookie, mode })
+        body: JSON.stringify({ url, cookie, mode, urls })
     });
     ensureOk(response, 'Capture request failed.');
     return response.json().catch(() => null);

@@ -1,3 +1,5 @@
+import { logger } from './logger.js';
+
 const cache = {};
 
 export function handleRequestInterception(req) {
@@ -13,6 +15,7 @@ export function handleRequestInterception(req) {
 
 export async function cacheAssets(page) {
     await page.setRequestInterception(true);
+    logger.debug('cache', 'Request interception enabled');
     page.on('request', handleRequestInterception);
     page.on('response', async (res) => {
         const url = res.url();
@@ -21,6 +24,7 @@ export async function cacheAssets(page) {
         try {
             const buffer = await res.buffer();
             cache[url] = buffer;
+            logger.debug('cache', 'Asset cached', { type, url });
         } catch {}
     });
 }

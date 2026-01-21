@@ -6,6 +6,9 @@
 /assets/sitemap-cache/*
 project.htm
 project.md
+notes.md
+static/sspro-node.pid
+static/sspro-node.port
 # Node.js
 node_modules/
 npm-debug.log*

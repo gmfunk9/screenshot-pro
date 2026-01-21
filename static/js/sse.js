@@ -5,10 +5,10 @@ export function createSseClient(options) {
 
     let source = null;
 
-    function notifyStatus(text) {
+    function notifyStatus(payload) {
         const handler = options.onStatus;
         if (!handler) return;
-        handler(text);
+        handler(payload);
     }
 
     function notifyError(error) {
@@ -19,6 +19,12 @@ export function createSseClient(options) {
 
     function notifyScreenshot(payload) {
         const handler = options.onScreenshot;
+        if (!handler) return;
+        handler(payload);
+    }
+
+    function notifyLog(payload) {
+        const handler = options.onLog;
         if (!handler) return;
         handler(payload);
     }
@@ -41,7 +47,14 @@ export function createSseClient(options) {
         if (!data) return;
         const type = data.type;
         if (type === 'ping') {
-            notifyStatus('Working…');
+            return;
+        }
+        if (type === 'status') {
+            notifyStatus(data);
+            return;
+        }
+        if (type === 'log') {
+            notifyLog(data);
             return;
         }
         const image = data.imageData;

@@ -27,7 +27,7 @@ test('gallery renders cards for captures', () => {
     const cards = container.querySelectorAll('.card');
     assert.equal(cards.length, 1);
     const image = cards[0].querySelector('img');
-    assert.equal(image.src.endsWith('/static/screenshots/test.png'), true);
+    assert.equal(image.src.includes('/static/screenshots/test.png'), true);
     gallery.clear();
     assert.equal(container.querySelectorAll('.card').length, 0);
 });
@@ -52,4 +52,20 @@ test('gallery renders failure messages', () => {
     gallery.append({ status: 'error', error: 'Boom' });
     const card = container.querySelector('.card');
     assert.ok(card.textContent.includes('Boom'));
+});
+
+test('gallery keeps image card when status arrives after capture', () => {
+    const container = setupDom();
+    const gallery = createGallery(container);
+    const pageUrl = 'https://example.com';
+    gallery.updateStatus({ pageUrl, host: 'example.com', message: 'Capturing…' });
+    gallery.append({
+        status: 'captured',
+        imageUrl: '/static/screenshots/test.png',
+        pageUrl,
+        host: 'example.com'
+    });
+    gallery.updateStatus({ pageUrl, host: 'example.com', message: 'Captured' });
+    const image = container.querySelector('.card__media');
+    assert.ok(image);
 });

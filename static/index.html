@@ -25,9 +25,26 @@
                 <p class="sidebar__subtitle">Capture, review, export.</p>
             </header>
             <form id="capture-form" class="stack stack--md" novalidate>
-                <label class="field">
+                <fieldset class="fieldset">
+                    <legend class="field__label">Capture source</legend>
+                    <div class="segmented" role="radiogroup" aria-label="Capture source">
+                        <label class="segmented__option">
+                            <input type="radio" name="inputMode" value="sitemap" checked>
+                            <span>Sitemap</span>
+                        </label>
+                        <label class="segmented__option">
+                            <input type="radio" name="inputMode" value="manual">
+                            <span>Manual list</span>
+                        </label>
+                    </div>
+                </fieldset>
+                <label class="field" data-input="sitemap">
                     <span class="field__label">Page URL</span>
-                    <input type="url" id="urlInput" name="url" placeholder="https://example.com" required>
+                    <input type="url" id="urlInput" name="url" placeholder="https://example.com">
+                </label>
+                <label class="field" data-input="manual" hidden>
+                    <span class="field__label">URLs (one per line)</span>
+                    <textarea id="urlListInput" name="urls" rows="6" placeholder="https://example.com&#10;https://example.com/about"></textarea>
                 </label>
                 <label class="field">
                     <span class="field__label">Cookie header</span>
@@ -61,7 +78,14 @@
                     <button id="clearDiskBtn" type="button" class="button button--danger">Clear disk</button>
                     <button id="exportPdfBtn" type="button" class="button">Export PDF</button>
                 </div>
+                <div class="cluster">
+                    <button id="restartServerBtn" type="button" class="button button--ghost">Restart server</button>
+                </div>
                 <button id="savePageBtn" type="button" class="button button--ghost">Save offline bundle</button>
+            </section>
+            <section class="sidebar__logs" aria-label="Logs">
+                <h2 class="sidebar__section-title">Logs</h2>
+                <div id="logOutput" class="log" role="log" aria-live="polite" aria-relevant="additions"></div>
             </section>
             <footer class="sidebar__footer" aria-live="polite">
                 <p id="sessionStatus" class="sidebar__status">Idle</p>

@@ -58,7 +58,8 @@ function buildImageCard(image) {
 
     const media = document.createElement('img');
     media.className = 'card__media';
-    media.src = image.imageUrl;
+    const cacheBust = `t=${Date.now()}`;
+    media.src = image.imageUrl.includes('?') ? `${image.imageUrl}&${cacheBust}` : `${image.imageUrl}?${cacheBust}`;
     media.alt = image.pageTitle || 'Captured screenshot';
     applySize(media, image.dimensions);
 
@@ -89,6 +90,45 @@ function buildErrorCard(image) {
     return card;
 }
 
+function buildStatusCard(payload) {
+    const card = document.createElement('article');
+    card.className = 'card card--status';
+    if (payload.pageUrl) {
+        card.dataset.url = payload.pageUrl;
+    }
+
+    const header = document.createElement('header');
+    header.className = 'card__meta';
+    let hasHeader = false;
+    if (payload.host) {
+        const title = document.createElement('p');
+        title.className = 'card__title';
+        title.textContent = payload.host;
+        header.appendChild(title);
+        hasHeader = true;
+    }
+    if (payload.mode) {
+        const badge = document.createElement('span');
+        badge.className = 'card__badge';
+        badge.textContent = formatMode(payload.mode);
+        header.appendChild(badge);
+        hasHeader = true;
+    }
+    if (hasHeader) card.appendChild(header);
+
+    const status = document.createElement('div');
+    status.className = 'card__actions';
+    status.textContent = payload.message || 'Queued…';
+    card.appendChild(status);
+    return card;
+}
+
+function findCard(container, pageUrl) {
+    if (!pageUrl) return null;
+    const escape = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape : (value) => value.replace(/"/g, '\\"');
+    return container.querySelector(`[data-url="${escape(pageUrl)}"]`);
+}
+
 export function createGallery(container) {
     if (!container) throw new Error('Missing gallery container.');
 
@@ -111,13 +151,40 @@ export function createGallery(container) {
     function append(image) {
         if (!image) return;
         ensureContent();
+        const existing = findCard(container, image.pageUrl);
         if (image.status === 'error') {
             const errorCard = buildErrorCard(image);
-            container.appendChild(errorCard);
+            if (existing) {
+                existing.replaceWith(errorCard);
+            } else {
+                container.appendChild(errorCard);
+            }
             return;
         }
         const card = buildImageCard(image);
-        container.appendChild(card);
+        if (image.pageUrl) {
+            card.dataset.url = image.pageUrl;
+        }
+        if (existing) {
+            existing.replaceWith(card);
+        } else {
+            container.appendChild(card);
+        }
+    }
+
+    function updateStatus(payload) {
+        if (!payload || !payload.pageUrl) return;
+        ensureContent();
+        const existing = findCard(container, payload.pageUrl);
+        if (existing && !existing.classList.contains('card--status')) {
+            return;
+        }
+        const card = buildStatusCard(payload);
+        if (existing) {
+            existing.replaceWith(card);
+        } else {
+            container.appendChild(card);
+        }
     }
 
     function clear() {
@@ -126,5 +193,5 @@ export function createGallery(container) {
 
     showPlaceholder();
 
-    return { append, clear };
+    return { append, clear, updateStatus };
 }

@@ -6,9 +6,11 @@ import { captureScreenshot } from './screenshot.js';
 import { enqueue } from './capture-queue.js';
 import { newSession, clearSessionDisk, clearSiteDisk, sessionSummary, listImages } from './session.js';
 import config from '../config.js';
+import { logger, subscribe } from './logger.js';
 
 const router = express.Router();
 const clients = new Set();
+let logSubscribed = false;
 
 function broadcast(payload) {
     const data = `data: ${JSON.stringify(payload)}\n\n`;
@@ -17,15 +19,36 @@ function broadcast(payload) {
     }
 }
 
+function broadcastStatus(message, meta = {}) {
+    if (!message) return;
+    broadcast({ type: 'status', message, ...meta });
+}
+
 async function processCapture(urls, cookie, mode) {
+    logger.info('routes', 'Processing capture batch', { count: urls.length, mode });
     const tasks = [];
+    let index = 0;
     for (const target of urls) {
+        index += 1;
+        const position = index;
+        broadcastStatus(`Queued ${position}/${urls.length}`, { step: 'queued', index: position, total: urls.length, pageUrl: target, mode });
         const job = enqueue(async () => {
             try {
+                const startedAt = Date.now();
+                broadcastStatus(`Capturing ${position}/${urls.length}`, { step: 'capturing', index: position, total: urls.length, pageUrl: target, mode });
+                logger.info('routes', 'Capturing URL', { url: target, index: position, total: urls.length, mode });
                 const imageData = await captureScreenshot(target, cookie, mode);
+                const elapsed = Math.round((Date.now() - startedAt) / 1000);
+                if (imageData && imageData.status === 'captured') {
+                    broadcastStatus(`Captured ${position}/${urls.length} (${elapsed}s)`, { step: 'captured', index: position, total: urls.length, pageUrl: target, seconds: elapsed, mode });
+                } else if (imageData && imageData.status === 'exists') {
+                    broadcastStatus(`Exists ${position}/${urls.length} (${elapsed}s)`, { step: 'exists', index: position, total: urls.length, pageUrl: target, seconds: elapsed, mode });
+                }
+                logger.info('routes', 'Capture finished', { url: target, status: imageData?.status || 'unknown', seconds: elapsed });
                 broadcast({ imageData });
                 return imageData;
             } catch (error) {
+                logger.error('routes', 'Capture error', { url: target, error: error.message });
                 const failure = {
                     status: 'error',
                     host: new URL(target).hostname,
@@ -33,6 +56,7 @@ async function processCapture(urls, cookie, mode) {
                     mode,
                     error: error.message
                 };
+                broadcastStatus(`Failed ${position}/${urls.length}`, { step: 'failed', index: position, total: urls.length, pageUrl: target, error: error.message, mode });
                 broadcast({ imageData: failure });
                 return failure;
             }
@@ -53,6 +77,8 @@ function normalizeMode(input) {
 }
 
 router.post('/capture', async (req, res) => {
+    broadcastStatus('Capture request received.', { step: 'start' });
+    logger.info('routes', 'Capture request received');
     let url = '';
     if (req.body) {
         if (req.body.url) url = req.body.url;
@@ -72,18 +98,59 @@ router.post('/capture', async (req, res) => {
     const mode = normalizeMode(modeInput);
     if (!mode) {
         res.status(400).json({ error: 'Unsupported mode; use mobile, tablet, or desktop.' });
+        logger.warn('routes', 'Unsupported mode', { mode: modeInput });
         return;
     }
     try {
-        const urls = await fetchSitemap(url);
+        let urls = [];
+        const manualList = Array.isArray(req.body?.urls) ? req.body.urls : [];
+        if (manualList.length) {
+            urls = manualList.map((entry) => String(entry).trim()).filter(Boolean);
+            broadcastStatus(`Manual list loaded (${urls.length} URLs)`, { step: 'manual', total: urls.length });
+            logger.info('routes', 'Manual list loaded', { count: urls.length });
+        } else {
+            broadcastStatus('Fetching sitemap…', { step: 'sitemap' });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+            logger.info('routes', 'Fetching sitemap', { url });
+            urls = await fetchSitemap(url, {
+                signal: controller.signal,
+                onStatus: (message) => broadcastStatus(message, { step: 'sitemap' })
+            });
+            clearTimeout(timeoutId);
+        }
         if (!urls.length) {
-            res.status(400).json({ error: 'Sitemap returned no URLs.' });
+            res.status(400).json({ error: 'No URLs to capture.' });
+            logger.warn('routes', 'No URLs returned');
             return;
         }
-        const results = await processCapture(urls, cookie, mode);
-        res.json({ success: true, count: results.length });
+        if (manualList.length) {
+            broadcastStatus(`Manual list accepted (${urls.length} URLs)`, { step: 'manual', total: urls.length });
+        } else {
+            broadcastStatus(`Sitemap loaded (${urls.length} URLs)`, { step: 'sitemap', total: urls.length });
+        }
+        logger.info('routes', 'Queueing captures', { count: urls.length, mode });
+        processCapture(urls, cookie, mode).catch((error) => {
+            const failure = {
+                status: 'error',
+                host: new URL(url).hostname,
+                pageUrl: url,
+                mode,
+                error: error.message
+            };
+            broadcast({ imageData: failure });
+            broadcastStatus('Capture batch failed', { step: 'failed', error: error.message });
+            logger.error('routes', 'Capture batch failed', { error: error.message });
+        });
+        res.json({ success: true, count: urls.length, queued: true });
     } catch (error) {
+        if (error && error.name === 'AbortError') {
+            res.status(504).json({ error: 'Sitemap request timed out.' });
+            logger.warn('routes', 'Sitemap request timed out', { url });
+            return;
+        }
         res.status(500).json({ error: error.message });
+        logger.error('routes', 'Capture request failed', { error: error.message });
     }
 });
 
@@ -96,6 +163,14 @@ router.get('/stream', (req, res) => {
     const ping = setInterval(() => {
         res.write('data: {"type":"ping"}\n\n');
     }, 10000);
+
+    if (!logSubscribed) {
+        logSubscribed = true;
+        subscribe((payload) => {
+            if (clients.size === 0) return;
+            broadcast({ type: 'log', ...payload });
+        });
+    }
 
     clients.add(res);
     req.on('close', () => {

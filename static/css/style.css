@@ -118,6 +118,47 @@ body {
     font-size: 0.95rem;
 }
 
+.sidebar__section-title {
+    margin: 0;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-muted);
+}
+
+.sidebar__logs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-sm);
+    margin-top: var(--gap-lg);
+}
+
+.log {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--gap-sm);
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+    max-height: 180px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.log__line {
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.log__line--error {
+    color: #f87171;
+}
+
+.log__line--success {
+    color: #34d399;
+}
+
 .sidebar__footer {
     margin-top: auto;
     padding-top: var(--gap-md);
@@ -303,6 +344,11 @@ body {
     font-size: 0.85rem;
     color: var(--color-muted);
     letter-spacing: 0.02em;
+}
+
+textarea {
+    min-height: 120px;
+    resize: vertical;
 }
 
 .fieldset {

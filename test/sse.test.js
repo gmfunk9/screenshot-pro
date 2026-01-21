@@ -46,7 +46,6 @@ test('SSE client handles messages and errors', () => {
     const instance = FakeEventSource.instances.at(-1);
     instance.emitMessage({ type: 'ping' });
     instance.emitMessage({ imageData: { status: 'captured' } });
-    assert.ok(statuses.includes('Working…'));
     assert.equal(screenshots.length, 1);
     instance.emitError(new Error('boom'));
     assert.equal(errors.length, 1);
